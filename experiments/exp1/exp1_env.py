@@ -5,6 +5,7 @@ from utils.core import Env, World, Agent, Landmark, Map
 
 class Exp1_Env(Env):
     def __init__(self):
+        super(Exp1_Env, self).__init__()
         self.world = self.make_world()
         self.agents = self.world.agents
         self.n = len(self.world.agents)
@@ -15,12 +16,12 @@ class Exp1_Env(Env):
     def reset(self):
         # agentのposとvelの初期化
         for agent in self.world.agents:
-            agent.state.p_pos = np.random.uniform(-1, 1, self.world.dim_p)
-            agent.state.p_vel = np.zeros(self.world.dim_p)
+            agent.state.p_pos = np.random.randint(-5, 5, self.world.dim_p)
         # landmarkのposとvelの初期化
         for landmark in self.world.landmarks:
-            landmark.state.p_pos = np.random.uniform(-1, 1, self.world.dim_p)
-            landmark.state.p_vel = np.zeros(self.world.dim_p)
+            landmark.state.p_pos = np.random.randint(-5, 5, self.world.dim_p)
+
+        self.world.map.reset(agents=self.world.agents, landmarks=self.world.landmarks)
 
         obs_n = list()
         for agent in self.agents:
@@ -32,6 +33,7 @@ class Exp1_Env(Env):
         for i, agent in enumerate(self.agents):
             self.__action(action_n[i], agent)
         self.world.step()
+        self.world.map.step(self.agents)
         # record observation for each agent
         for agent in self.agents:
             obs_n.append(self.__observation(agent))
@@ -55,7 +57,7 @@ class Exp1_Env(Env):
         rew = 0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            rew -= min(dists)
+            rew -=min(dists) / 10.0
         if agent.collide:
             for a in self.world.agents:
                 if is_collision(a, agent):
@@ -85,8 +87,8 @@ class Exp1_Env(Env):
 
     def make_world(self):
         world = World()
-        num_agents = 3
-        num_landmarks = 3
+        num_agents = 1
+        num_landmarks = 1
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'
@@ -95,6 +97,8 @@ class Exp1_Env(Env):
         for i, landmark in enumerate(world.landmarks):
             landmark.name = f'landmark {i}'
             landmark.collide = False
+        world.map = Exp1_Map()
+
         return world
 
     def describe_env(self):
@@ -103,4 +107,65 @@ class Exp1_Env(Env):
 
     =================Action=================
     | 1: Right | 2: Up | 3: Left | 4: Down |
+    ==============State(agent)==============
+    | obs1 : [agent.state.p_pos]           |
+    | obs2 : entity_pos                    |
+    | obs3: other_pos                      |
+    | np.concatenate(ob1 + obs2 + obs3)    |
+    =================Reward=================
+    | rew1 : -min(dist)
+    | rew2 : -1 if is_collision            |
+    | rew1 + rew2                          |
     ========================================""")
+
+
+class Exp1_Map(Map):
+    def __init__(self):
+        super(Exp1_Map, self).__init__()
+        self.SIZE_X = 13
+        self.SIZE_Y = 13
+        # 0:walls, 1:agents, 2:landmarks
+        self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
+        self.agents_pos = dict()
+        self.landmarks_pos = dict()
+        self.locate_walls()
+
+    def reset(self, agents, landmarks):
+        for agent in agents:
+            self.agents_pos[agent.name] = agent.state.p_pos
+        for landmark in landmarks:
+            self.landmarks_pos[landmark.name] = landmark.state.p_pos
+        from pprint import pprint
+        pprint(self.matrix[..., 0])
+        print(self.landmarks_pos)
+
+    def step(self, agents):
+        for agent in agents:
+            self.agents_pos[agent.name] = agent.state.p_pos
+        print(self.agents_pos)
+
+    def coord2ind(self, p_pos):
+        pos_x, pos_y = p_pos
+        pos_x = (self.SIZE_X // 2) + pos_x
+        pos_y = (self.SIZE_Y // 2) - pos_y
+        res = np.array([pos_x, pos_y])
+
+        return res
+
+    def locate_walls(self):
+        #internal_x_walls = np.array([0, 11, 14, 25, 28, self.SIZE_Y-1])
+        #internal_y_walls = np.array([0, 11, 14, 25, 28, self.SIZE_X-1])
+        #self.matrix[:, internal_x_walls, 0] = 1
+        #self.matrix[internal_y_walls, :, 0] = 1
+        self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
+        self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
+
+    def locate_agents(self):
+        for agent in self.agents:
+            pos_x, pos_y = self.coord2ind(agent.state.p_pos)
+            self.matrix[pos_x, pos_y, 1] = 1
+
+    def locate_landmarks(self):
+        for landmark in self.landmarks:
+            pos_x, pos_y = self.coord2ind(landmark.state.p_pos)
+            self.matrix[pos_x, pos_y, 2] = 1
