@@ -97,7 +97,11 @@ class Wall(object):
 
 class Map(object):
     def __init__(self):
-        pass
+        self.sizeX = None
+        self.sizeY = None
+        self.matrix = None
+        self.agents = []
+        self.landmarks = []
 
 # multi-agent world
 class World(object):
@@ -159,37 +163,23 @@ class World(object):
         for i,agent in enumerate(self.agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
-                p_force[i] = agent.action.u + noise
+                p_force[i] = agent.action.u #+ noise
         return p_force
 
     # gather physical forces acting on entities
     def apply_environment_force(self, p_force):
-        # simple (but inefficient) collision response
-        for a,entity_a in enumerate(self.entities):
-            for b,entity_b in enumerate(self.entities):
-                if(b <= a): continue
-                [f_a, f_b] = self.get_collision_force(entity_a, entity_b)
-                if(f_a is not None):
-                    if(p_force[a] is None): p_force[a] = 0.0
-                    p_force[a] = f_a + p_force[a]
-                if(f_b is not None):
-                    if(p_force[b] is None): p_force[b] = 0.0
-                    p_force[b] = f_b + p_force[b]
+        for i, agent in enumerate(self.agents):
+            next_pos = agent.state.p_pos + p_force[i].astype(np.int64)
+            next_pos = self.map.coord2ind(next_pos)
+            if self.map.matrix[next_pos[0], next_pos[1], 0] == 1:
+                p_force[i] = np.zeros(self.dim_p)
         return p_force
 
     # integrate physical state
     def integrate_state(self, p_force):
         for i,entity in enumerate(self.entities):
             if not entity.movable: continue
-            entity.state.p_vel = entity.state.p_vel * (1 - self.damping)
-            if (p_force[i] is not None):
-                entity.state.p_vel += (p_force[i] / entity.mass) * self.dt
-            if entity.max_speed is not None:
-                speed = np.sqrt(np.square(entity.state.p_vel[0]) + np.square(entity.state.p_vel[1]))
-                if speed > entity.max_speed:
-                    entity.state.p_vel = entity.state.p_vel / np.sqrt(np.square(entity.state.p_vel[0]) +
-                                                                  np.square(entity.state.p_vel[1])) * entity.max_speed
-            entity.state.p_pos += entity.state.p_vel * self.dt
+            entity.state.p_pos += p_force[i].astype(np.int64)
 
     def update_agent_state(self, agent):
         # set communication state (directly for now)
