@@ -6,12 +6,17 @@ from utils.core import Env, World, Agent, Landmark, Map
 class Exp1_Env(Env):
     def __init__(self):
         super(Exp1_Env, self).__init__()
+        self.describe_env()
         self.world = self.make_world()
         self.agents = self.world.agents
-        self.n = len(self.world.agents)
+        self.num_agents = len(self.world.agents)
         self.shared_reward = True
-        #self.action_space, observation_space = list(), list()
-        self.describe_env()
+        self.action_space, self.observation_space = list(), list()
+        self.reset()
+
+        for agent in self.agents:
+            self.action_space.append(5)
+            self.observation_space.append(self.__observation(agent).shape[0])
 
     def reset(self):
         # agentのposとvelの初期化
@@ -38,13 +43,14 @@ class Exp1_Env(Env):
         for agent in self.agents:
             obs_n.append(self.__observation(agent))
             reward_n.append(self.__reward(agent))
+            done_n.append(self.__done(agent))
 
         # all agents get total reward in cooperative case
         reward = np.sum(reward_n)
         if self.shared_reward:
-            reward_n = [reward] * self.n
+            reward_n = [reward] * self.num_agents
 
-        return obs_n, reward_n
+        return obs_n, reward_n, done_n
 
     def __reward(self, agent):
         def is_collision(agent1, agent2):
@@ -65,14 +71,20 @@ class Exp1_Env(Env):
         return rew
 
     def __observation(self, agent):
-        entity_pos, other_pos = list(), list()
+        landmark_pos, other_pos = list(), list()
         # landmarkと他agentとの相対的な距離
-        for entity in self.world.landmarks:
-            entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+        for landmark in self.world.landmarks:
+            landmark_pos.append(landmark.state.p_pos - agent.state.p_pos)
         for other in self.world.agents:
             if other is agent: continue
             other_pos.append(other.state.p_pos - agent.state.p_pos)
-        return np.concatenate([agent.state.p_pos] + entity_pos + other_pos)
+        return np.concatenate([agent.state.p_pos] + landmark_pos + other_pos)
+
+    def __done(self, agent):
+        for landmark in self.world.landmarks:
+            if all(agent.state.p_pos == landmark.state.p_pos):
+                return True
+        return False
 
     def __action(self, action, agent):
         agent.action.u = np.zeros(self.world.dim_p)
@@ -87,8 +99,8 @@ class Exp1_Env(Env):
 
     def make_world(self):
         world = World()
-        num_agents = 1
-        num_landmarks = 1
+        num_agents = 2
+        num_landmarks = 2
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'
@@ -135,14 +147,10 @@ class Exp1_Map(Map):
             self.agents_pos[agent.name] = agent.state.p_pos
         for landmark in landmarks:
             self.landmarks_pos[landmark.name] = landmark.state.p_pos
-        from pprint import pprint
-        pprint(self.matrix[..., 0])
-        print(self.landmarks_pos)
 
     def step(self, agents):
         for agent in agents:
             self.agents_pos[agent.name] = agent.state.p_pos
-        print(self.agents_pos)
 
     def coord2ind(self, p_pos):
         pos_x, pos_y = p_pos
