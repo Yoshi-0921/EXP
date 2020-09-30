@@ -22,6 +22,7 @@ class Exp1_Env(Env):
         # agentのposとvelの初期化
         for agent in self.world.agents:
             agent.state.p_pos = np.random.randint(-5, 5, self.world.dim_p)
+            agent.collide_walls = False
         # landmarkのposとvelの初期化
         for landmark in self.world.landmarks:
             landmark.state.p_pos = np.random.randint(-5, 5, self.world.dim_p)
@@ -63,10 +64,13 @@ class Exp1_Env(Env):
         rew = 0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            rew -=min(dists) / 10.0
+            rew -=min(dists) / self.world.map.SIZE_X
         if agent.collide:
             for a in self.world.agents:
+                if agent == a: continue
                 if is_collision(a, agent):
+                    rew -= 1
+                if agent.collide_walls:
                     rew -= 1
         return rew
 
@@ -84,6 +88,9 @@ class Exp1_Env(Env):
         for landmark in self.world.landmarks:
             if all(agent.state.p_pos == landmark.state.p_pos):
                 return True
+        # 壁にぶつかったらリセット
+        if agent.collide_walls:
+            return True
         return False
 
     def __action(self, action, agent):
@@ -99,8 +106,8 @@ class Exp1_Env(Env):
 
     def make_world(self):
         world = World()
-        num_agents = 2
-        num_landmarks = 2
+        num_agents = 1
+        num_landmarks = 1
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'
@@ -117,18 +124,18 @@ class Exp1_Env(Env):
         print("""
     Experiment 1 Environment generated!
 
-    =================Action=================
-    | 1: Right | 2: Up | 3: Left | 4: Down |
-    ==============State(agent)==============
-    | obs1 : [agent.state.p_pos]           |
-    | obs2 : entity_pos                    |
-    | obs3: other_pos                      |
-    | np.concatenate(ob1 + obs2 + obs3)    |
-    =================Reward=================
-    | rew1 : -min(dist)
-    | rew2 : -1 if is_collision            |
-    | rew1 + rew2                          |
-    ========================================""")
+    ======================Action======================
+    | 0: Stay | 1: Right | 2: Up | 3: Left | 4: Down |
+    ===================State(agent)===================
+    | obs1 : [agent.state.p_pos]                     |
+    | obs2 : entity_pos                              |
+    | obs3: other_pos                                |
+    | np.concatenate(ob1 + obs2 + obs3)              |
+    ======================Reward======================
+    | rew1 : -min(dist)                              |
+    | rew2 : -1 if is_collision                      |
+    | rew1 + rew2                                    |
+    ==================================================""")
 
 
 class Exp1_Map(Map):

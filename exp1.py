@@ -41,33 +41,42 @@ class Exp1(pl.LightningModule):
         self.episode_reward = 0
 
     def forward(self, x):
-        pass
+        return self.agents[0].net(x)
 
     def loss_calculation(self, batch):
         loss = 0
         states, actions, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
-            state = states[agent_id]
+            state = states[agent_id].float()
             action = actions[agent_id]
             reward = rewards[agent_id]
             done = dones[agent_id]
-            next_state = next_states[agent_id]
+            next_state = next_states[agent_id].float()
+
+            # normalize states and rewards in range of [0, 1.0]
+            state[:, 0::2] /= self.env.world.map.SIZE_X
+            state[:, 1::2] /= self.env.world.map.SIZE_Y
 
             loss += agent.mse_loss(state, action, reward, done, next_state)
 
         return loss
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
-        epsilon = max(0.01, 1.0 - (self.global_step+1/1000))
+    def training_step(self, batch, batch_idx):
+        #print()
+        #print(f'step: {self.global_step}')
+        #print(f'agent: {self.env.agents[0].state.p_pos}')
+        #print(f'landmark: {self.env.world.landmarks[0].state.p_pos}')
+        epsilon = max(0.01, 1.0 - (self.global_step+1)/10000)
+        #print(f'epsilon: {epsilon}')
         rewards, dones = self.play_step(epsilon)
         self.episode_reward += np.sum(rewards)
         loss = self.loss_calculation(batch)
 
-        if dones:
+        if all(dones):
             self.total_reward += self.episode_reward
             self.reset()
 
-        if self.global_step % 64 == 0:
+        if self.global_step % 10000 == 0:
             for agent in self.agents:
                 agent.target_update()
 
@@ -79,13 +88,13 @@ class Exp1(pl.LightningModule):
         return {'loss': loss, 'log': log}
 
     def train_dataloader(self):
-        dataset = RLDataset(self.buffer, 512)
+        dataset = RLDataset(self.buffer, 200)
         return DataLoader(dataset=dataset, batch_size=16)
 
     def configure_optimizers(self):
         optim_list = list()
         for agent in self.agents:
-            optimizer = optim.Adam(agent.net.parameters(), 1e-2)
+            optimizer = optim.Adam(agent.net.parameters(), 1e-3)
             optim_list.extend([optimizer])
 
         return optim_list
@@ -99,6 +108,9 @@ class Exp1(pl.LightningModule):
              actions.append(action)
 
         new_states, rewards, dones = self.env.step(actions)
+
+        #print(f'action: {actions[0]}')
+        #print(f'reward: {rewards[0]}')
 
         exp = Experience(self.states, actions, rewards, dones, new_states)
 
@@ -119,6 +131,7 @@ if __name__ == '__main__':
     trainer = pl.Trainer(
         gpus=1,
         max_epochs=100000,
-        logger=logger)
+        logger=logger,
+        checkpoint_callback=None)
 
     trainer.fit(model)

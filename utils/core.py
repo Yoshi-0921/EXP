@@ -73,6 +73,7 @@ class Agent(Entity):
         super(Agent, self).__init__()
         # agents are movable by default
         self.movable = True
+        self.collide_walls = False
         # cannot send communication signals
         self.silent = False
         # cannot observe the world
@@ -173,6 +174,7 @@ class World(object):
             next_pos = self.map.coord2ind(next_pos)
             if self.map.matrix[next_pos[0], next_pos[1], 0] == 1:
                 p_force[i] = np.zeros(self.dim_p)
+                agent.collide_walls = True
         return p_force
 
     # integrate physical state
