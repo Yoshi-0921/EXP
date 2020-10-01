@@ -56,8 +56,8 @@ class Exp1:
             next_state = next_states[agent_id].float().to(self.device)
 
             # normalize states and rewards in range of [0, 1.0]
-            state[:, 0::2] /= 10#self.env.world.map.SIZE_X
-            state[:, 1::2] /= 10#self.env.world.map.SIZE_Y
+            state[:, 0::2] /= self.env.world.map.SIZE_X
+            state[:, 1::2] /= self.env.world.map.SIZE_Y
 
             loss.append(agent.mse_loss(state, action, reward, done, next_state))
 
@@ -148,15 +148,10 @@ class Exp1:
             states[:, 0::2] /= 10
             states[:, 1::2] /= 10
 
-            #print(f'state: {states}')
             action, self.q = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
 
         new_states, rewards, dones = self.env.step(actions)
-
-        #print(f'action: {actions}')
-        #print(f'reward: {rewards}')
-        #print(f'new_state: {new_states}')
 
         exp = Experience(self.states, actions, rewards, dones, new_states)
 
