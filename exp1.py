@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from random import random
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -85,6 +84,7 @@ class Exp1:
             agent.target_net.eval()
 
         # training loop
+        torch.backends.cudnn.benchmark = True
         for epoch in tqdm(range(max_epochs)):
             while True:
                 self.global_step += 1
