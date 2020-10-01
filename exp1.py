@@ -64,7 +64,7 @@ class Exp1:
 
     def fit(self):
         # hard coding
-        max_epochs = 100000
+        max_epochs = 1000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
@@ -85,43 +85,46 @@ class Exp1:
 
         # training loop
         torch.backends.cudnn.benchmark = True
-        for epoch in tqdm(range(max_epochs)):
-            while True:
-                self.global_step += 1
-                self.episode_step += 1
+        with tqdm(total=max_epochs) as pbar:
+            for epoch in range(max_epochs):
+                while True:
+                    self.global_step += 1
+                    self.episode_step += 1
+                    loss_sum = 0.0
 
-                # train based on experiments
-                for batch in dataloader:
+                    # train based on experiments
+                    for batch in dataloader:
 
-                    for agent in self.agents:
-                        agent.net.train()
+                        for agent in self.agents:
+                            agent.net.train()
 
-                    loss_list = self.loss_calculation(batch)
+                        loss_list = self.loss_calculation(batch)
 
-                    for optimizer, loss in zip(optim_list, loss_list):
-                        optimizer.zero_grad()
-                        loss.backward()
-                        nn.utils.clip_grad_norm_(agent.net.parameters(), 0.5)
-                        optimizer.step()
+                        for optimizer, loss in zip(optim_list, loss_list):
+                            loss_sum += loss.item()
+                            optimizer.zero_grad()
+                            loss.backward()
+                            nn.utils.clip_grad_norm_(agent.net.parameters(), 0.5)
+                            optimizer.step()
 
-                # update target network
-                if self.global_step % 10000 == 0:
-                    for agent in self.agents:
-                        agent.target_update()
+                    # update target network
+                    if self.global_step % 10000 == 0:
+                        for agent in self.agents:
+                            agent.target_update()
 
-                # execute in environment
-                epsilon = max(0.01, 1.0 - (epoch+1)/(max_epochs/2))
-                actions, rewards, dones = self.play_step(epsilon)
-                self.episode_reward += np.sum(rewards)
+                    # execute in environment
+                    epsilon = max(0.01, 1.0 - (epoch+1)/(max_epochs/2))
+                    actions, rewards, dones = self.play_step(epsilon)
+                    self.episode_reward += np.sum(rewards)
 
-                # log
-                self.writer.add_scalar('reward', torch.tensor(rewards).mean(), self.global_step)
-                self.writer.add_scalar('episodes', torch.tensor(self.episode_count), self.global_step)
-                self.writer.add_scalar('loss', loss, self.global_step)
+                    # log
+                    self.writer.add_scalar('reward', torch.tensor(rewards).mean(), self.global_step)
+                    self.writer.add_scalar('episodes', torch.tensor(self.episode_count), self.global_step)
+                    self.writer.add_scalar('loss', loss, self.global_step)
 
-                # print on terminal
-                if epoch % (max_epochs//10) == 0:
-                    print(f"""
+                    # print on terminal
+                    if epoch % (max_epochs//10) == 0:
+                        print(f"""
     q_values: {self.q[0]}
     actions: {actions}
     rewards: {rewards}
@@ -129,14 +132,20 @@ class Exp1:
     agent: {self.env.agents[0].state.p_pos}
     landmark: {self.env.world.landmarks[0].state.p_pos}""")
 
-                if all(dones) or 15 < self.episode_step:
-                    self.episode_count += 1
-                    self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
-                    self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
-                    self.reset()
-                    break
+                    if all(dones) or 15 < self.episode_step:
+                        self.episode_count += 1
+                        self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
+                        self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
+                        self.reset()
+                        break
+
+                # updates pbar
+                pbar.set_description(f'[Step {self.global_step}]')
+                pbar.set_postfix({'loss': loss_sum})
+                pbar.update(1)
 
         self.writer.close()
+        pbar.close()
 
     @torch.no_grad()
     def play_step(self, epsilon: float = 0.0):
