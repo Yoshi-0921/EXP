@@ -15,7 +15,7 @@ class Exp1_Env(Env):
         self.reset()
 
         for agent in self.agents:
-            self.action_space.append(5)
+            self.action_space.append(4)
             self.observation_space.append(self.__observation(agent).shape[0])
 
     def reset(self):
@@ -61,17 +61,20 @@ class Exp1_Env(Env):
             return True if dist < dist_min else False
 
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew = 0
+        rew = 0.0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            rew -=min(dists) / self.world.map.SIZE_X
+            rew -= min(dists) / 10#self.world.map.SIZE_X
+            if all(agent.state.p_pos == l.state.p_pos):
+                rew += 1.0
+        if agent.collide_walls:
+            #rew -= 1.0
+            pass
         if agent.collide:
             for a in self.world.agents:
                 if agent == a: continue
                 if is_collision(a, agent):
-                    rew -= 1
-                if agent.collide_walls:
-                    rew -= 1
+                    rew -= 1.0
         return rew
 
     def __observation(self, agent):
@@ -82,6 +85,7 @@ class Exp1_Env(Env):
         for other in self.world.agents:
             if other is agent: continue
             other_pos.append(other.state.p_pos - agent.state.p_pos)
+        #return np.concatenate(landmark_pos)
         return np.concatenate([agent.state.p_pos] + landmark_pos + other_pos)
 
     def __done(self, agent):
@@ -90,7 +94,7 @@ class Exp1_Env(Env):
                 return True
         # 壁にぶつかったらリセット
         if agent.collide_walls:
-            return True
+            return False
         return False
 
     def __action(self, action, agent):
@@ -99,10 +103,10 @@ class Exp1_Env(Env):
 
         if agent.movable:
             agent.action.u = np.zeros(self.world.dim_p)
-            if action == 1: agent.action.u[0] = 1.0
-            elif action == 2: agent.action.u[1] = 1.0
-            elif action == 3: agent.action.u[0] = -1.0
-            elif action == 4: agent.action.u[1] = -1.0
+            if action == 0: agent.action.u[0] = 1.0
+            elif action == 1: agent.action.u[1] = 1.0
+            elif action == 2: agent.action.u[0] = -1.0
+            elif action == 3: agent.action.u[1] = -1.0
 
     def make_world(self):
         world = World()
