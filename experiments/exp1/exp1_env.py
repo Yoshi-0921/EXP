@@ -64,7 +64,7 @@ class Exp1_Env(Env):
         rew = 0.0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            rew -= min(dists) / 10#self.world.map.SIZE_X
+            rew -= min(dists) / self.world.map.SIZE_X
             if all(agent.state.p_pos == l.state.p_pos):
                 rew += 1.0
 
@@ -168,10 +168,6 @@ class Exp1_Map(Map):
         return res
 
     def locate_walls(self):
-        #internal_x_walls = np.array([0, 11, 14, 25, 28, self.SIZE_Y-1])
-        #internal_y_walls = np.array([0, 11, 14, 25, 28, self.SIZE_X-1])
-        #self.matrix[:, internal_x_walls, 0] = 1
-        #self.matrix[internal_y_walls, :, 0] = 1
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
 
