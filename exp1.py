@@ -64,7 +64,7 @@ class Exp1:
 
     def fit(self):
         # hard coding
-        max_epochs = 1000
+        max_epochs = 100000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
@@ -87,6 +87,23 @@ class Exp1:
         torch.backends.cudnn.benchmark = True
         with tqdm(total=max_epochs) as pbar:
             for epoch in range(max_epochs):
+                # validation phase
+                if epoch % (max_epochs//10) == 0:
+                    val_step = 0
+                    episode_reward = 0.0
+                    while True:
+                        val_step += 1
+                        epsilon = 0.0
+                        actions, rewards, dones = self.play_step(epsilon)
+                        episode_reward += np.sum(rewards)
+
+                        if all(dones) or 15 < val_step:
+                            self.writer.add_scalar('validation/episode_reward', torch.tensor(self.episode_reward), epoch)
+                            self.writer.add_scalar('validation/episode_step', torch.tensor(val_step), epoch)
+                            self.reset()
+                            break
+
+                # training phase
                 while True:
                     self.global_step += 1
                     self.episode_step += 1
@@ -118,9 +135,8 @@ class Exp1:
                     self.episode_reward += np.sum(rewards)
 
                     # log
-                    self.writer.add_scalar('reward', torch.tensor(rewards).mean(), self.global_step)
-                    self.writer.add_scalar('episodes', torch.tensor(self.episode_count), self.global_step)
-                    self.writer.add_scalar('loss', loss, self.global_step)
+                    self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
+                    self.writer.add_scalar('training/loss', loss, self.global_step)
 
                     # print on terminal
                     if epoch % (max_epochs//10) == 0:
@@ -136,6 +152,7 @@ class Exp1:
                         self.episode_count += 1
                         self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
                         self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
+                        self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
                         self.reset()
                         break
 
