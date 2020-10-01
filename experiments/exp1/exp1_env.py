@@ -67,9 +67,7 @@ class Exp1_Env(Env):
             rew -= min(dists) / 10#self.world.map.SIZE_X
             if all(agent.state.p_pos == l.state.p_pos):
                 rew += 1.0
-        if agent.collide_walls:
-            #rew -= 1.0
-            pass
+
         if agent.collide:
             for a in self.world.agents:
                 if agent == a: continue
@@ -92,9 +90,7 @@ class Exp1_Env(Env):
         for landmark in self.world.landmarks:
             if all(agent.state.p_pos == landmark.state.p_pos):
                 return True
-        # 壁にぶつかったらリセット
-        if agent.collide_walls:
-            return False
+
         return False
 
     def __action(self, action, agent):
