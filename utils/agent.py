@@ -29,7 +29,7 @@ class Agent:
         Returns:
             random action
         """
-        action = int(random()*4)+1
+        action = int(random()*4)
 
         return action
 
