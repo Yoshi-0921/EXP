@@ -15,17 +15,18 @@ class Exp1_Env(Env):
         self.reset()
 
         for agent in self.agents:
-            self.action_space.append(4)
+            self.action_space.append(5)
             self.observation_space.append(self.__observation(agent).shape[0])
 
     def reset(self):
-        # agentのposとvelの初期化
+        region = (self.world.map.SIZE_X//2) - 1
+        # agentのposの初期化
         for agent in self.world.agents:
-            agent.state.p_pos = np.random.randint(-5, 5, self.world.dim_p)
+            agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
             agent.collide_walls = False
-        # landmarkのposとvelの初期化
+        # landmarkのposの初期化
         for landmark in self.world.landmarks:
-            landmark.state.p_pos = np.random.randint(-5, 5, self.world.dim_p)
+            landmark.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
 
         self.world.map.reset(agents=self.world.agents, landmarks=self.world.landmarks)
 
@@ -64,7 +65,7 @@ class Exp1_Env(Env):
         rew = 0.0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            rew -= min(dists) / self.world.map.SIZE_X
+            rew -= (min(dists) / self.world.map.SIZE_X)
             if all(agent.state.p_pos == l.state.p_pos):
                 rew += 1.0
 
@@ -99,10 +100,10 @@ class Exp1_Env(Env):
 
         if agent.movable:
             agent.action.u = np.zeros(self.world.dim_p)
-            if action == 0: agent.action.u[0] = 1.0
-            elif action == 1: agent.action.u[1] = 1.0
-            elif action == 2: agent.action.u[0] = -1.0
-            elif action == 3: agent.action.u[1] = -1.0
+            if action == 1: agent.action.u[0] = 1.0
+            elif action == 2: agent.action.u[1] = 1.0
+            elif action == 3: agent.action.u[0] = -1.0
+            elif action == 4: agent.action.u[1] = -1.0
 
     def make_world(self):
         world = World()
@@ -132,17 +133,18 @@ class Exp1_Env(Env):
     | obs3: other_pos                                |
     | np.concatenate(ob1 + obs2 + obs3)              |
     ======================Reward======================
-    | rew1 : -min(dist)                              |
-    | rew2 : -1 if is_collision                      |
-    | rew1 + rew2                                    |
+    | rew1 : -min(dist) / SIZE_X                     |
+    | rew2 : +1 if success                           |
+    | rew3 : -1 if is_collision                      |
+    | rew1 + rew2 + rew3                             |
     ==================================================""")
 
 
 class Exp1_Map(Map):
     def __init__(self):
         super(Exp1_Map, self).__init__()
-        self.SIZE_X = 13
-        self.SIZE_Y = 13
+        self.SIZE_X = 7
+        self.SIZE_Y = 7
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.agents_pos = dict()
