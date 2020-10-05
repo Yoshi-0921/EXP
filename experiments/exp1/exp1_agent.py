@@ -27,11 +27,12 @@ class DQNAgent(Agent):
         if np.random.random() < epsilon:
             action = self.random_action()
         else:
-            state = state.unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                state = state.unsqueeze(0).to(self.device)
 
-            q_values = self.net(state)
-            _, action = torch.max(q_values, dim=1)
-            action = int(action.item())
+                q_values = self.net(state)
+                _, action = torch.max(q_values, dim=1)
+                action = int(action.item())
 
         return action, q_values
 
@@ -41,7 +42,7 @@ class DQNAgent(Agent):
             target_param.data.copy_(param.data)
 
     def mse_loss(self, state, action, reward, done, next_state):
-        self.net.train()
+        self.net.eval()
         self.target_net.eval()
         state_action_values = self.net(state).gather(1, action.unsqueeze(-1)).squeeze(-1)
         with torch.no_grad():
@@ -50,6 +51,7 @@ class DQNAgent(Agent):
             next_state_values = next_state_values.detach()
         expected_state_action_values = next_state_values * 0.99 + reward
 
+        self.net.train()
         loss = self.criterion(state_action_values, expected_state_action_values)
 
         return loss

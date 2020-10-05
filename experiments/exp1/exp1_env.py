@@ -10,7 +10,6 @@ class Exp1_Env(Env):
         self.world = self.make_world()
         self.agents = self.world.agents
         self.num_agents = len(self.world.agents)
-        self.shared_reward = True
         self.action_space, self.observation_space = list(), list()
         self.reset()
 
@@ -49,8 +48,7 @@ class Exp1_Env(Env):
 
         # all agents get total reward in cooperative case
         reward = np.sum(reward_n)
-        if self.shared_reward:
-            reward_n = [reward] * self.num_agents
+        reward_n = [reward] * self.num_agents
 
         return obs_n, reward_n, done_n
 
@@ -143,8 +141,8 @@ class Exp1_Env(Env):
 class Exp1_Map(Map):
     def __init__(self):
         super(Exp1_Map, self).__init__()
-        self.SIZE_X = 7
-        self.SIZE_Y = 7
+        self.SIZE_X = 9
+        self.SIZE_Y = 9
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.agents_pos = dict()
