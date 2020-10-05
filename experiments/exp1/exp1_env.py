@@ -63,15 +63,16 @@ class Exp1_Env(Env):
         rew = 0.0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            rew -= (min(dists) / self.world.map.SIZE_X)
+            rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
-                rew += 1.0
+                #rew += (1.0 / self.num_agents)
+                pass
 
         if agent.collide:
             for a in self.world.agents:
                 if agent == a: continue
                 if is_collision(a, agent):
-                    rew -= 1.0
+                    rew -= (1.0 / self.num_agents)
         return rew
 
     def __observation(self, agent):
@@ -105,8 +106,8 @@ class Exp1_Env(Env):
 
     def make_world(self):
         world = World()
-        num_agents = 1
-        num_landmarks = 1
+        num_agents = 2
+        num_landmarks = 2
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'

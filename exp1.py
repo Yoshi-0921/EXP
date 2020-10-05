@@ -13,6 +13,7 @@ from experiments.exp1.exp1_agent import DQNAgent
 from experiments.exp1.exp1_env import Exp1_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
+from utils.tools import hard_update
 
 
 class Exp1:
@@ -45,7 +46,7 @@ class Exp1:
         self.episode_reward = 0
         self.episode_step = 0
 
-    def loss_calculation(self, batch):
+    def loss_and_update(self, batch):
         loss = list()
         states, actions, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
@@ -58,31 +59,27 @@ class Exp1:
             # normalize states and rewards in range of [0, 1.0]
             state[:, 0::2] /= self.env.world.map.SIZE_X
             state[:, 1::2] /= self.env.world.map.SIZE_Y
+            next_state[:, 0::2] /= self.env.world.map.SIZE_X
+            next_state[:, 1::2] /= self.env.world.map.SIZE_Y
 
-            loss.append(agent.mse_loss(state, action, reward, done, next_state))
+            loss.append(agent.update(state, action, reward, done, next_state))
 
         return loss
 
     def fit(self):
         # hard coding
-        max_epochs = 100000
+        max_epochs = 10000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
         dataloader = DataLoader(dataset=dataset, batch_size=64)
 
-        # configure optimizer
-        optim_list = list()
-        for agent in self.agents:
-            optimizer = optim.Adam(agent.net.parameters(), 1e-3)
-            optim_list.extend([optimizer])
-
         # put models on GPU and change to training mode
         for agent in self.agents:
-            agent.net.to(self.device)
-            agent.target_net.to(self.device)
-            agent.net.train()
-            agent.target_net.eval()
+            agent.dqn.to(self.device)
+            agent.target_dqn.to(self.device)
+            agent.dqn.train()
+            agent.target_dqn.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True
@@ -109,24 +106,19 @@ class Exp1:
                 while True:
                     self.global_step += 1
                     self.episode_step += 1
-                    loss_sum = 0.0
+                    total_loss_sum = 0.0
 
                     # train based on experiments
                     for batch in dataloader:
-                        loss_list = self.loss_calculation(batch)
+                        loss_list = self.loss_and_update(batch)
 
-                        for optimizer, loss in zip(optim_list, loss_list):
-                            loss_sum += loss.item()
-                            optimizer.zero_grad()
-                            loss.backward()
-                            nn.utils.clip_grad_norm_(agent.net.parameters(), 0.1)
-                            optimizer.step()
+                        for loss in loss_list:
+                            total_loss_sum += loss.item()
 
                     # update target network
                     if self.global_step % 10000 == 0:
                         for agent in self.agents:
-                            pass
-                            #agent.target_update()
+                            hard_update(agent.target_dqn, agent.dqn)
 
                     # execute in environment
                     epsilon = max(0.1, 1.0 - (epoch+1)/(max_epochs/4))
@@ -136,7 +128,7 @@ class Exp1:
                     # log
                     self.writer.add_scalar('training/epsilon', torch.tensor(epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
-                    self.writer.add_scalar('training/loss', loss, self.global_step)
+                    self.writer.add_scalar('training/loss', torch.tensor(total_loss_sum), self.global_step)
 
                     # print on terminal
                     if epoch % (max_epochs//10) == 0:
@@ -158,7 +150,7 @@ class Exp1:
 
                 # updates pbar
                 pbar.set_description(f'[Step {self.global_step}]')
-                pbar.set_postfix({'loss': loss_sum})
+                pbar.set_postfix({'loss': total_loss_sum})
                 pbar.update(1)
 
         self.writer.close()
