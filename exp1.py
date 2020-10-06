@@ -68,7 +68,7 @@ class Exp1:
 
     def fit(self):
         # hard coding
-        max_epochs = 10000
+        max_epochs = 20000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
@@ -121,7 +121,7 @@ class Exp1:
                             hard_update(agent.target_dqn, agent.dqn)
 
                     # execute in environment
-                    epsilon = max(0.1, 1.0 - (epoch+1)/3000)
+                    epsilon = max(0.1, 1.0 - (epoch+1)/2000)
                     actions, rewards, dones = self.play_step(epsilon)
                     self.episode_reward += np.sum(rewards)
 

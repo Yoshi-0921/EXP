@@ -106,8 +106,8 @@ class Exp1_Env(Env):
 
     def make_world(self):
         world = World()
-        num_agents = 1
-        num_landmarks = 1
+        num_agents = 2
+        num_landmarks = 2
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'
