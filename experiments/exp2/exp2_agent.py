@@ -104,7 +104,7 @@ class DDPGAgent(Agent):
         policy_loss = -self.critic(state, self.actor(state))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
-        nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5) # actorの間違い？
+        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5) # actorの間違い？
         self.actor_optimizer.step()
 
         # Update the target networks
