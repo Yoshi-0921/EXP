@@ -1,0 +1,4 @@
+hydra:
+  job_logging:
+    root:
+      handlers: []

@@ -16,25 +16,32 @@ from utils.tools import soft_update, hard_update
 
 
 class DDPGAgent(Agent):
-    def __init__(self, obs_size, act_size):
+    def __init__(self, obs_size, act_size, config):
         super(DDPGAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
-        self.actor = Actor(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
-        self.target_actor = Actor(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
-        self.critic = Critic(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
-        self.target_critic = Critic(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
+        self.actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.target_actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.target_critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
-        self.actor_optimizer  = optim.Adam(self.actor.parameters(), lr=1e-3)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3)
+        self.actor_optimizer  = optim.Adam(params=self.actor.parameters(),
+                                           lr=config.learning_rate,
+                                           betas=config.betas,
+                                           eps=config.eps)
+        self.critic_optimizer = optim.Adam(params=self.critic.parameters(),
+                                           lr=config.learning_rate,
+                                           betas=config.betas,
+                                           eps=config.eps)
 
         hard_update(self.target_actor, self.actor)
         hard_update(self.target_critic, self.critic)
 
-        self.tau = 0.001
+        self.gamma = config.gamma
+        self.tau = config.tau
         self.obs_size = obs_size
         self.act_size = act_size
 
@@ -85,7 +92,7 @@ class DDPGAgent(Agent):
             # Compute the target
             reward = reward.unsqueeze(-1)
             done = done.unsqueeze(-1)
-            expected_values = reward + 0.99 * (1 - done) * next_state_action_values
+            expected_values = reward + self.gamma * (1 - done) * next_state_action_values
 
         self.critic.train()
         # Update the critic network

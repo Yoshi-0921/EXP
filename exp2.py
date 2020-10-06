@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import warnings
 from random import random
 
+import hydra
 import numpy as np
 import torch
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -13,17 +16,19 @@ from experiments.exp2.exp2_env import Exp2_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
 
+warnings.simplefilter('ignore')
 
 class Exp2:
-    def __init__(self):
+    def __init__(self, config):
         super(Exp2, self).__init__()
+        self.cfg = config
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.env = Exp2_Env()
+        self.env = Exp2_Env(config)
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
-        self.buffer = ReplayBuffer(1000000, action_onehot=True)
-        self.agents = [DDPGAgent(obs_size[agent_id], act_size[agent_id]) for agent_id in range(self.env.num_agents)]
+        self.buffer = ReplayBuffer(config.capacity, action_onehot=True)
+        self.agents = [DDPGAgent(obs_size[agent_id], act_size[agent_id], config) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
         self.global_step = 0
@@ -34,6 +39,11 @@ class Exp2:
         self.populate()
         self.reset()
         self.writer = SummaryWriter()
+
+        # describe network
+        print(self.agents[0].actor)
+        print(self.agents[0].critic)
+        print(self.agents[0].criterion)
 
     def populate(self, steps=1000):
         for i in range(steps):
@@ -67,12 +77,9 @@ class Exp2:
         return value_loss_list, policy_loss_list
 
     def fit(self):
-        # hard coding
-        max_epochs = 20000
-
         # set dataloader
-        dataset = RLDataset(self.buffer, 64)
-        dataloader = DataLoader(dataset=dataset, batch_size=64)
+        dataset = RLDataset(self.buffer, self.cfg.batch_size)
+        dataloader = DataLoader(dataset=dataset, batch_size=self.cfg.batch_size)
 
         # put models on GPU and change to training mode
         for agent in self.agents:
@@ -87,10 +94,10 @@ class Exp2:
 
         # training loop
         torch.backends.cudnn.benchmark = True
-        with tqdm(total=max_epochs) as pbar:
-            for epoch in range(max_epochs):
+        with tqdm(total=self.cfg.max_epochs) as pbar:
+            for epoch in range(self.cfg.max_epochs):
                 # validation phase
-                if epoch % (max_epochs//100) == 0:
+                if epoch % (self.cfg.max_epochs//100) == 0:
                     self.validation_count += 1
                     val_step = 0
                     episode_reward = 0.0
@@ -100,7 +107,7 @@ class Exp2:
                         _, rewards, dones = self.play_step(epsilon)
                         episode_reward += np.sum(rewards)
 
-                        if all(dones) or 20 < val_step:
+                        if all(dones) or self.cfg.max_episode_length < val_step:
                             self.writer.add_scalar('validation/episode_reward', torch.tensor(episode_reward), self.validation_count)
                             self.writer.add_scalar('validation/episode_step', torch.tensor(val_step), self.validation_count)
                             self.reset()
@@ -124,7 +131,7 @@ class Exp2:
                             policy_loss_sum += policy_loss
 
                     # execute in environment
-                    epsilon = max(0.1, 1.0 - (epoch+1)/2000)
+                    epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
                     actions, rewards, dones = self.play_step(epsilon)
                     self.episode_reward += np.sum(rewards)
 
@@ -136,7 +143,7 @@ class Exp2:
                     self.writer.add_scalar('training/policy_loss', torch.tensor(policy_loss_sum), self.global_step)
 
                     # print on terminal
-                    if epoch % (max_epochs//10) == 0:
+                    if self.cfg.logs_on_termial and epoch % (self.cfg.max_epochs//10) == 0:
                         print(f"""
     logits: {self.logits}
     actions: {actions}
@@ -145,7 +152,7 @@ class Exp2:
     agent: {self.env.agents[0].state.p_pos}
     landmark: {self.env.world.landmarks[0].state.p_pos}""")
 
-                    if all(dones) or 20 < self.episode_step:
+                    if all(dones) or self.cfg.max_episode_length < self.episode_step:
                         self.episode_count += 1
                         self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
                         self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
@@ -187,9 +194,13 @@ class Exp2:
         return actions, rewards, dones
 
 
-if __name__ == '__main__':
+@hydra.main(config_path='conf/exp2.yaml')
+def main(config: DictConfig):
     torch.manual_seed(921)
     np.random.seed(921)
 
-    model = Exp2()
+    model = Exp2(config=config)
     model.fit()
+
+if __name__ == '__main__':
+    main()

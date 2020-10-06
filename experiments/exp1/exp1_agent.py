@@ -14,16 +14,24 @@ from utils.tools import hard_update
 
 
 class DQNAgent(Agent):
-    def __init__(self, obs_size, act_size):
+    def __init__(self, obs_size, act_size, config):
         super(DQNAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.dqn = DQN(obs_size, act_size, hidden_size=16).to(self.device)
-        self.target_dqn = DQN(obs_size, act_size, hidden_size=16).to(self.device)
+
+        # set neural networks
+        self.dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
+        self.target_dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
         self.criterion = nn.MSELoss()
-        hard_update(self.target_dqn, self.dqn)
 
         # configure optimizer
-        self.optimizer = optim.Adam(self.dqn.parameters(), 1e-3)
+        self.optimizer = optim.Adam(params=self.dqn.parameters(),
+                                    lr=config.learning_rate,
+                                    betas=config.betas,
+                                    eps=config.eps)
+
+        hard_update(self.target_dqn, self.dqn)
+
+        self.gamma = config.gamma
 
     def get_action(self, state, epsilon):
         self.dqn.eval()
@@ -48,7 +56,7 @@ class DQNAgent(Agent):
             next_state_values = self.target_dqn(next_state).max(1)[0]
             next_state_values[done] = 0.0
             next_state_values = next_state_values.detach()
-        expected_state_action_values = reward + 0.99 * (1 - done) * next_state_values
+        expected_state_action_values = reward + self.gamma * (1 - done) * next_state_values
 
         self.dqn.train()
         self.optimizer.zero_grad()
