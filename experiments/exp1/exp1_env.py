@@ -10,10 +10,6 @@ class Exp1_Env(Env):
         self.world = self.make_world()
         self.agents = self.world.agents
         self.num_agents = len(self.world.agents)
-<<<<<<< HEAD
-=======
-        self.shared_reward = True
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
         self.action_space, self.observation_space = list(), list()
         self.reset()
 
@@ -52,12 +48,7 @@ class Exp1_Env(Env):
 
         # all agents get total reward in cooperative case
         reward = np.sum(reward_n)
-<<<<<<< HEAD
         reward_n = [reward] * self.num_agents
-=======
-        if self.shared_reward:
-            reward_n = [reward] * self.num_agents
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
         return obs_n, reward_n, done_n
 
@@ -72,26 +63,16 @@ class Exp1_Env(Env):
         rew = 0.0
         for l in self.world.landmarks:
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-<<<<<<< HEAD
             rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
                 #rew += (1.0 / self.num_agents)
                 pass
-=======
-            rew -= (min(dists) / self.world.map.SIZE_X)
-            if all(agent.state.p_pos == l.state.p_pos):
-                rew += 1.0
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
         if agent.collide:
             for a in self.world.agents:
                 if agent == a: continue
                 if is_collision(a, agent):
-<<<<<<< HEAD
                     rew -= (1.0 / self.num_agents)
-=======
-                    rew -= 1.0
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
         return rew
 
     def __observation(self, agent):
@@ -108,15 +89,9 @@ class Exp1_Env(Env):
     def __done(self, agent):
         for landmark in self.world.landmarks:
             if all(agent.state.p_pos == landmark.state.p_pos):
-<<<<<<< HEAD
                 return 1
 
         return 0
-=======
-                return True
-
-        return False
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
     def __action(self, action, agent):
         agent.action.u = np.zeros(self.world.dim_p)
@@ -167,13 +142,8 @@ class Exp1_Env(Env):
 class Exp1_Map(Map):
     def __init__(self):
         super(Exp1_Map, self).__init__()
-<<<<<<< HEAD
         self.SIZE_X = 9
         self.SIZE_Y = 9
-=======
-        self.SIZE_X = 7
-        self.SIZE_Y = 7
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.agents_pos = dict()
