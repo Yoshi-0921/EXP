@@ -68,7 +68,7 @@ class Exp2:
 
     def fit(self):
         # hard coding
-        max_epochs = 100000
+        max_epochs = 10000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
@@ -124,7 +124,7 @@ class Exp2:
                             policy_loss_sum += policy_loss
 
                     # execute in environment
-                    epsilon = max(0.1, 1.0 - (epoch+1)/(max_epochs/4))
+                    epsilon = max(0.1, 1.0 - (epoch+1)/3000)
                     actions, rewards, dones = self.play_step(epsilon)
                     self.episode_reward += np.sum(rewards)
 

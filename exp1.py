@@ -13,10 +13,7 @@ from experiments.exp1.exp1_agent import DQNAgent
 from experiments.exp1.exp1_env import Exp1_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
-<<<<<<< HEAD
 from utils.tools import hard_update
-=======
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
 
 class Exp1:
@@ -26,11 +23,7 @@ class Exp1:
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
-<<<<<<< HEAD
         self.buffer = ReplayBuffer(1000000)
-=======
-        self.buffer = ReplayBuffer(10000)
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
         self.agents = [DQNAgent(obs_size[agent_id], act_size[agent_id]) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
@@ -53,11 +46,7 @@ class Exp1:
         self.episode_reward = 0
         self.episode_step = 0
 
-<<<<<<< HEAD
     def loss_and_update(self, batch):
-=======
-    def loss_calculation(self, batch):
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
         loss = list()
         states, actions, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
@@ -70,51 +59,27 @@ class Exp1:
             # normalize states and rewards in range of [0, 1.0]
             state[:, 0::2] /= self.env.world.map.SIZE_X
             state[:, 1::2] /= self.env.world.map.SIZE_Y
-<<<<<<< HEAD
             next_state[:, 0::2] /= self.env.world.map.SIZE_X
             next_state[:, 1::2] /= self.env.world.map.SIZE_Y
 
             loss.append(agent.update(state, action, reward, done, next_state))
-=======
-
-            loss.append(agent.mse_loss(state, action, reward, done, next_state))
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
         return loss
 
     def fit(self):
         # hard coding
-<<<<<<< HEAD
-        max_epochs = 100000
-=======
         max_epochs = 10000
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
         dataloader = DataLoader(dataset=dataset, batch_size=64)
 
-<<<<<<< HEAD
         # put models on GPU and change to training mode
         for agent in self.agents:
             agent.dqn.to(self.device)
             agent.target_dqn.to(self.device)
             agent.dqn.train()
             agent.target_dqn.eval()
-=======
-        # configure optimizer
-        optim_list = list()
-        for agent in self.agents:
-            optimizer = optim.Adam(agent.net.parameters(), 1e-3)
-            optim_list.extend([optimizer])
-
-        # put models on GPU and change to training mode
-        for agent in self.agents:
-            agent.net.to(self.device)
-            agent.target_net.to(self.device)
-            agent.net.train()
-            agent.target_net.eval()
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
         # training loop
         torch.backends.cudnn.benchmark = True
@@ -131,11 +96,7 @@ class Exp1:
                         actions, rewards, dones = self.play_step(epsilon)
                         episode_reward += np.sum(rewards)
 
-<<<<<<< HEAD
                         if all(dones) or 20 < val_step:
-=======
-                        if all(dones) or 15 < val_step:
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
                             self.writer.add_scalar('validation/episode_reward', torch.tensor(episode_reward), self.validation_count)
                             self.writer.add_scalar('validation/episode_step', torch.tensor(val_step), self.validation_count)
                             self.reset()
@@ -145,7 +106,6 @@ class Exp1:
                 while True:
                     self.global_step += 1
                     self.episode_step += 1
-<<<<<<< HEAD
                     total_loss_sum = 0.0
 
                     # train based on experiments
@@ -154,51 +114,21 @@ class Exp1:
 
                         for loss in loss_list:
                             total_loss_sum += loss.item()
-=======
-                    loss_sum = 0.0
-
-                    # train based on experiments
-                    for batch in dataloader:
-
-                        for agent in self.agents:
-                            agent.net.train()
-
-                        loss_list = self.loss_calculation(batch)
-
-                        for optimizer, loss in zip(optim_list, loss_list):
-                            loss_sum += loss.item()
-                            optimizer.zero_grad()
-                            loss.backward()
-                            nn.utils.clip_grad_norm_(agent.net.parameters(), 0.1)
-                            optimizer.step()
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
                     # update target network
                     if self.global_step % 10000 == 0:
                         for agent in self.agents:
-<<<<<<< HEAD
                             hard_update(agent.target_dqn, agent.dqn)
 
                     # execute in environment
-                    epsilon = max(0.1, 1.0 - (epoch+1)/(max_epochs/4))
-=======
-                            agent.target_update()
-
-                    # execute in environment
-                    epsilon = max(0.1, 1.0 - (epoch+1)/(max_epochs/2))
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
+                    epsilon = max(0.1, 1.0 - (epoch+1)/3000)
                     actions, rewards, dones = self.play_step(epsilon)
                     self.episode_reward += np.sum(rewards)
 
                     # log
-<<<<<<< HEAD
                     self.writer.add_scalar('training/epsilon', torch.tensor(epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
                     self.writer.add_scalar('training/total_loss', torch.tensor(total_loss_sum), self.global_step)
-=======
-                    self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
-                    self.writer.add_scalar('training/loss', loss, self.global_step)
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
                     # print on terminal
                     if epoch % (max_epochs//10) == 0:
@@ -210,11 +140,7 @@ class Exp1:
     agent: {self.env.agents[0].state.p_pos}
     landmark: {self.env.world.landmarks[0].state.p_pos}""")
 
-<<<<<<< HEAD
                     if all(dones) or 20 < self.episode_step:
-=======
-                    if all(dones) or 15 < self.episode_step:
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
                         self.episode_count += 1
                         self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
                         self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
@@ -224,11 +150,7 @@ class Exp1:
 
                 # updates pbar
                 pbar.set_description(f'[Step {self.global_step}]')
-<<<<<<< HEAD
                 pbar.set_postfix({'loss': total_loss_sum})
-=======
-                pbar.set_postfix({'loss': loss_sum})
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
                 pbar.update(1)
 
         self.writer.close()
