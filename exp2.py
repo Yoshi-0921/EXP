@@ -68,7 +68,7 @@ class Exp2:
 
     def fit(self):
         # hard coding
-        max_epochs = 100000
+        max_epochs = 10000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
