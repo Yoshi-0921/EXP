@@ -89,9 +89,9 @@ class Exp1_Env(Env):
     def __done(self, agent):
         for landmark in self.world.landmarks:
             if all(agent.state.p_pos == landmark.state.p_pos):
-                return True
+                return 1
 
-        return False
+        return 0
 
     def __action(self, action, agent):
         agent.action.u = np.zeros(self.world.dim_p)
@@ -106,8 +106,8 @@ class Exp1_Env(Env):
 
     def make_world(self):
         world = World()
-        num_agents = 2
-        num_landmarks = 2
+        num_agents = 1
+        num_landmarks = 1
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'

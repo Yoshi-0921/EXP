@@ -40,18 +40,20 @@ class DDPGAgent(Agent):
 
     def get_action(self, state, epsilon):
         self.actor.eval()
-        policy = [0]
         if np.random.random() < epsilon:
             action = self.random_action()
+            logit = self.onehot_from_action(action)
+            logit = logit.detach().cpu().numpy()
         else:
             with torch.no_grad():
                 state = state.unsqueeze(0).to(self.device)
 
-                policy = self.actor(state)
-                _, action = torch.max(policy, dim=1)
+                logit = self.actor(state)
+                _, action = torch.max(logit, dim=1)
+                logit = logit[0].detach().cpu().numpy()
                 action = int(action.item())
 
-        return action, policy
+        return action, logit
 
     def onehot_from_logits(self, logits, eps=0.0):
         # get best (according to current policy) actions in one-hot form
@@ -69,30 +71,40 @@ class DDPGAgent(Agent):
         action = Variable(torch.eye(self.act_size)[action], requires_grad=False).to(self.device)
         return action
 
-    def update(self, state, action, reward, done, next_state):
-        # Get the actions and the state values to compute the targets
-        next_action_batch = self.target_actor(next_state)
-        next_state_action_values = self.target_critic(next_state, next_action_batch.detach())
+    def update(self, state, logit, reward, done, next_state):
+        self.actor.eval()
+        self.target_actor.eval()
+        self.critic.eval()
+        self.target_critic.eval()
 
-        # Compute the target
-        reward = reward.unsqueeze(-1)
-        done = done.unsqueeze(-1)
-        expected_values = 0.99 * next_state_action_values + reward
+        with torch.no_grad():
+            # Get the actions and the state values to compute the targets
+            next_action_batch = self.target_actor(next_state)
+            next_state_action_values = self.target_critic(next_state, next_action_batch.detach())
 
+            # Compute the target
+            reward = reward.unsqueeze(-1)
+            done = done.unsqueeze(-1)
+            expected_values = reward + 0.99 * (1 - done) * next_state_action_values
+
+        self.critic.train()
         # Update the critic network
         self.critic_optimizer.zero_grad()
-        state_action_batch = self.critic(state, self.onehot_from_action(action))
+        state_action_batch = self.critic(state, logit)
         value_loss = F.mse_loss(state_action_batch, expected_values.detach())
         value_loss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
         self.critic_optimizer.step()
+
+        self.critic.eval()
+        self.actor.train()
 
         # Update the actor network
         self.actor_optimizer.zero_grad()
         policy_loss = -self.critic(state, self.actor(state))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
-        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5) # actorの間違い？
+        nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5) # actorの間違い？
         self.actor_optimizer.step()
 
         # Update the target networks

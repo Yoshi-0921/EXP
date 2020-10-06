@@ -22,7 +22,7 @@ class Exp2:
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
-        self.buffer = ReplayBuffer(10000)
+        self.buffer = ReplayBuffer(1000000, action_onehot=True)
         self.agents = [DDPGAgent(obs_size[agent_id], act_size[agent_id]) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
@@ -46,10 +46,10 @@ class Exp2:
 
     def loss_and_update(self, batch):
         value_loss_list, policy_loss_list = list(), list()
-        states, actions, rewards, dones, next_states = batch
+        states, logits, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
             state = states[agent_id].float().to(self.device)
-            action = actions[agent_id].to(self.device)
+            logit = logits[agent_id].to(self.device)
             reward = rewards[agent_id].to(self.device)
             done = dones[agent_id].to(self.device)
             next_state = next_states[agent_id].float().to(self.device)
@@ -60,7 +60,7 @@ class Exp2:
             next_state[:, 0::2] /= self.env.world.map.SIZE_X
             next_state[:, 1::2] /= self.env.world.map.SIZE_Y
 
-            value_loss, policy_loss = agent.update(state, action, reward, done, next_state)
+            value_loss, policy_loss = agent.update(state, logit, reward, done, next_state)
             value_loss_list.append(value_loss)
             policy_loss_list.append(policy_loss)
 
@@ -80,8 +80,10 @@ class Exp2:
             agent.target_actor.to(self.device)
             agent.critic.to(self.device)
             agent.target_critic.to(self.device)
-            #agent.net.train()
-            #agent.target_net.eval()
+            agent.actor.eval()
+            agent.target_actor.eval()
+            agent.critic.eval()
+            agent.target_critic.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True
@@ -121,11 +123,6 @@ class Exp2:
                             value_loss_sum += value_loss
                             policy_loss_sum += policy_loss
 
-                    # update target network
-                    if self.global_step % 10000 == 0:
-                        for agent in self.agents:
-                            pass
-
                     # execute in environment
                     epsilon = max(0.1, 1.0 - (epoch+1)/(max_epochs/4))
                     actions, rewards, dones = self.play_step(epsilon)
@@ -141,6 +138,7 @@ class Exp2:
                     # print on terminal
                     if epoch % (max_epochs//10) == 0:
                         print(f"""
+    logits: {self.logits}
     actions: {actions}
     rewards: {rewards}
 
@@ -166,20 +164,21 @@ class Exp2:
     @torch.no_grad()
     def play_step(self, epsilon: float = 0.0):
 
-        actions, selected_actions = list(), list()
+        actions, logits = list(), list()
         for agent_id, agent in enumerate(self.agents):
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
             states[:, 0::2] /= self.env.world.map.SIZE_Y
             states[:, 1::2] /= self.env.world.map.SIZE_Y
 
-            action, policy = agent.get_action(states[agent_id], epsilon)
+            action, logit = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
-            #selected_actions.append(selected_action)
+            logits.append(logit)
+        self.logits = logits
 
         next_states, rewards, dones = self.env.step(actions)
 
-        exp = Experience(self.states, actions, rewards, dones, next_states)
+        exp = Experience(self.states, logits, rewards, dones, next_states)
 
         self.buffer.append(exp)
 

@@ -48,7 +48,7 @@ class DQNAgent(Agent):
             next_state_values = self.target_dqn(next_state).max(1)[0]
             next_state_values[done] = 0.0
             next_state_values = next_state_values.detach()
-        expected_state_action_values = next_state_values * 0.99 + reward
+        expected_state_action_values = reward + 0.99 * (1 - done) * next_state_values
 
         self.dqn.train()
         self.optimizer.zero_grad()

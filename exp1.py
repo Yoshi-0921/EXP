@@ -23,7 +23,7 @@ class Exp1:
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
-        self.buffer = ReplayBuffer(10000)
+        self.buffer = ReplayBuffer(1000000)
         self.agents = [DQNAgent(obs_size[agent_id], act_size[agent_id]) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
@@ -68,7 +68,7 @@ class Exp1:
 
     def fit(self):
         # hard coding
-        max_epochs = 10000
+        max_epochs = 100000
 
         # set dataloader
         dataset = RLDataset(self.buffer, 64)
@@ -128,7 +128,7 @@ class Exp1:
                     # log
                     self.writer.add_scalar('training/epsilon', torch.tensor(epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
-                    self.writer.add_scalar('training/loss', torch.tensor(total_loss_sum), self.global_step)
+                    self.writer.add_scalar('training/total_loss', torch.tensor(total_loss_sum), self.global_step)
 
                     # print on terminal
                     if epoch % (max_epochs//10) == 0:

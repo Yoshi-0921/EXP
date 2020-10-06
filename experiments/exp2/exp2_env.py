@@ -65,7 +65,8 @@ class Exp2_Env(Env):
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
             rew -= (min(dists) / self.world.map.SIZE_X)
             if all(agent.state.p_pos == l.state.p_pos):
-                rew += 1.0
+                #rew += 1.0
+                pass
 
         if agent.collide:
             for a in self.world.agents:
@@ -88,9 +89,9 @@ class Exp2_Env(Env):
     def __done(self, agent):
         for landmark in self.world.landmarks:
             if all(agent.state.p_pos == landmark.state.p_pos):
-                return True
+                return 1
 
-        return False
+        return 0
 
     def __action(self, action, agent):
         agent.action.u = np.zeros(self.world.dim_p)
