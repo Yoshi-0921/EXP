@@ -16,8 +16,14 @@ class ReplayBuffer:
         capacity: size of the buffer
     """
 
+<<<<<<< HEAD
+    def __init__(self, capacity: int, action_onehot=False) -> None:
+        self.buffer = collections.deque(maxlen=capacity)
+        self.action_onehot = action_onehot
+=======
     def __init__(self, capacity: int) -> None:
         self.buffer = collections.deque(maxlen=capacity)
+>>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
     def __len__(self) -> None:
         return len(self.buffer)
@@ -35,9 +41,21 @@ class ReplayBuffer:
         global_states, global_actions, global_rewards, global_dones, global_next_states = zip(*[self.buffer[idx] for idx in indices])
 
         global_states = np.array(global_states).transpose(1, 0, 2)
+<<<<<<< HEAD
+        global_rewards = np.array(global_rewards, dtype=np.float32).transpose(1, 0)
+        global_dones = np.array(global_dones).transpose(1, 0)
+        global_next_states = np.array(global_next_states).transpose(1, 0, 2)
+
+        if not self.action_onehot:
+            global_actions = np.array(global_actions).transpose(1, 0)
+        else:
+            global_actions = np.array(global_actions).transpose(1, 0, 2)
+
+=======
         global_actions = np.array(global_actions).transpose(1, 0)
         global_rewards = np.array(global_rewards, dtype=np.float32).transpose(1, 0)
         global_dones = np.array(global_dones, dtype=np.bool).transpose(1, 0)
         global_next_states = np.array(global_next_states).transpose(1, 0, 2)
 
+>>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
         return global_states, global_actions, global_rewards, global_dones, global_next_states
