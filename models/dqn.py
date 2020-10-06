@@ -10,14 +10,14 @@ class DQN(nn.Module):
     Args:
         obs_size: observation/state size of the environment
         n_actions: number of discrete actions available in the environment
-        hidden_size: size of hidden layers
+        hidden: size of hidden layers
     """
 
-    def __init__(self, obs_size: int, n_actions: int, hidden_size: int = 128):
+    def __init__(self, obs_size: int, n_actions: int, hidden: int = 128):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(obs_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, n_actions)
+        self.fc1 = nn.Linear(obs_size, hidden)
+        self.fc2 = nn.Linear(hidden, hidden)
+        self.fc3 = nn.Linear(hidden, n_actions)
 
     def forward(self, x):
         out = F.relu(self.fc1(x))

@@ -4,14 +4,15 @@ import numpy as np
 from utils.core import Env, World, Agent, Landmark, Map
 
 class Exp1_Env(Env):
-    def __init__(self):
+    def __init__(self, config):
         super(Exp1_Env, self).__init__()
-        self.describe_env()
-        self.world = self.make_world()
+        self.world = self.make_world(config)
         self.agents = self.world.agents
         self.num_agents = len(self.world.agents)
         self.action_space, self.observation_space = list(), list()
         self.reset()
+
+        self.describe_env()
 
         for agent in self.agents:
             self.action_space.append(5)
@@ -104,10 +105,10 @@ class Exp1_Env(Env):
             elif action == 3: agent.action.u[0] = -1.0
             elif action == 4: agent.action.u[1] = -1.0
 
-    def make_world(self):
+    def make_world(self, config):
         world = World()
-        num_agents = 2
-        num_landmarks = 2
+        num_agents = config.num_agents
+        num_landmarks = config.num_landmarks
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = f'agent {i}'
@@ -116,7 +117,7 @@ class Exp1_Env(Env):
         for i, landmark in enumerate(world.landmarks):
             landmark.name = f'landmark {i}'
             landmark.collide = False
-        world.map = Exp1_Map()
+        world.map = Exp1_Map(config)
 
         return world
 
@@ -140,10 +141,10 @@ class Exp1_Env(Env):
 
 
 class Exp1_Map(Map):
-    def __init__(self):
+    def __init__(self, config):
         super(Exp1_Map, self).__init__()
-        self.SIZE_X = 9
-        self.SIZE_Y = 9
+        self.SIZE_X = config.SIZE_X
+        self.SIZE_Y = config.SIZE_Y
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.agents_pos = dict()
