@@ -20,14 +20,8 @@ class DQN(nn.Module):
         self.fc3 = nn.Linear(hidden_size, n_actions)
 
     def forward(self, x):
-<<<<<<< HEAD
         out = F.relu(self.fc1(x))
         out = F.relu(self.fc2(out))
         out = self.fc3(out)
-=======
-        out = F.tanh(self.fc1(x))
-        out = F.tanh(self.fc2(out))
-        out = F.tanh(self.fc3(out))
->>>>>>> 3887ac7a7f59978e499b606ebdb04026d3575832
 
         return out
