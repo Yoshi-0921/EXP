@@ -21,15 +21,15 @@ class DDPGAgent(Agent):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
-        self.actor = Actor(obs_size, act_size, hidden1=64, hidden2=64).to(self.device)
-        self.target_actor = Actor(obs_size, act_size, hidden1=64, hidden2=64).to(self.device)
-        self.critic = Critic(obs_size, act_size, hidden1=64, hidden2=64).to(self.device)
-        self.target_critic = Critic(obs_size, act_size, hidden1=64, hidden2=64).to(self.device)
+        self.actor = Actor(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
+        self.target_actor = Actor(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
+        self.critic = Critic(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
+        self.target_critic = Critic(obs_size, act_size, hidden1=16, hidden2=16).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
-        self.actor_optimizer  = optim.Adam(self.actor.parameters(), lr=1e-4)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3, weight_decay=1e-2)
+        self.actor_optimizer  = optim.Adam(self.actor.parameters(), lr=1e-3)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3)
 
         hard_update(self.target_actor, self.actor)
         hard_update(self.target_critic, self.critic)
