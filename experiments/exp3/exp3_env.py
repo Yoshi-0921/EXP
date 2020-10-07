@@ -3,9 +3,9 @@
 import numpy as np
 from utils.core import Env, World, Agent, Landmark, Map
 
-class Exp2_Env(Env):
+class Exp3_Env(Env):
     def __init__(self, config):
-        super(Exp2_Env, self).__init__()
+        super(Exp3_Env, self).__init__()
         self.world = self.make_world(config)
         self.agents = self.world.agents
         self.num_agents = len(self.world.agents)
@@ -66,7 +66,7 @@ class Exp2_Env(Env):
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
             rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
-                #rew += 1.0
+                #rew += (1.0 / self.num_agents)
                 pass
 
         if agent.collide:
@@ -117,13 +117,13 @@ class Exp2_Env(Env):
         for i, landmark in enumerate(world.landmarks):
             landmark.name = f'landmark {i}'
             landmark.collide = False
-        world.map = Exp2_Map(config)
+        world.map = Exp3_Map(config)
 
         return world
 
     def describe_env(self):
         print("""
-    Experiment 2 Environment generated!
+    Experiment 3 Environment generated!
 
     ======================Action======================
     | 0: Stay | 1: Right | 2: Up | 3: Left | 4: Down |
@@ -140,11 +140,11 @@ class Exp2_Env(Env):
     ==================================================""")
 
 
-class Exp2_Map(Map):
+class Exp3_Map(Map):
     def __init__(self, config):
-        super(Exp2_Map, self).__init__()
+        super(Exp3_Map, self).__init__()
         self.SIZE_X = config.SIZE_X
-        self.SIZE_Y = config.SIZE_X
+        self.SIZE_Y = config.SIZE_Y
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.agents_pos = dict()
