@@ -20,9 +20,9 @@ class Exp3_Env(Env):
 
     def reset(self):
         region = (self.world.map.SIZE_X//2) - 1
-        # agentのposの初期化
+        # agentのposの初期化(Static)
         for agent in self.world.agents:
-            agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
+            agent.state.p_pos = (0, 0)
             agent.collide_walls = False
         # landmarkのposの初期化
         for landmark in self.world.landmarks:

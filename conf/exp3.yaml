@@ -6,8 +6,8 @@ num_agents: 1
 num_landmarks: 1
 
 # configure map
-SIZE_X: 9
-SIZE_Y: 9
+SIZE_X: 7
+SIZE_Y: 7
 
 # configure agent
 hidden: 16

@@ -9,7 +9,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.autograd import Variable
 
-from models.ddpg import Actor, Critic
+from models.exp2 import Actor, Critic
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import soft_update, hard_update
