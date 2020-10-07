@@ -8,7 +8,7 @@ Code is basically written in Python using PyTorch .
 GIF cited from [here](https://openai.com/blog/learning-to-cooperate-compete-and-communicate/)
 ___
 ## 1. Environments
-Simple emprical environment has been implemented so far.
+Simple empirical environment has been implemented so far.
 
 ### 1.0 Maps
 Setting up such appropriate environment is quit important.
