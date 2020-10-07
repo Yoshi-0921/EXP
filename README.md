@@ -6,7 +6,7 @@ Code is basically written in Python using PyTorch .
 <p align="center"><img width="250" alt="spread_maddpg_notag" src="https://user-images.githubusercontent.com/60799014/92319743-64f73e00-f056-11ea-9bac-cdeadc4cc2bd.gif"></p>
 
 GIF cited from [here](https://openai.com/blog/learning-to-cooperate-compete-and-communicate/)
-___
+
 ## 1. Environments
 Simple empirical environment has been implemented so far.
 
@@ -18,8 +18,6 @@ Agents interact with the environment and the other agents in the following grid 
 
 <p align="center"><img width="375" alt="map_2x3" src="https://user-images.githubusercontent.com/60799014/95280420-e75e6200-088f-11eb-9a45-ac6ec19623e9.png">
 <img width="250" alt="map_3x3" src="https://user-images.githubusercontent.com/60799014/95280409-e299ae00-088f-11eb-8731-b0c43dd7048b.png"></p>
-
-___
 
 ### 1.1 Exp1, Exp2
 Agents and events are randomly put inside the grid map. Agents aim to approach the events as fast as possible.
@@ -34,6 +32,7 @@ Agents and events are randomly put inside the grid map. Agents aim to approach t
 | 3: Left | np.concatenate(ob1 + obs2 + obs3) | - |
 | 4: Down | - | - |
 
+### 1.2 Exp3
 Still in progress.
 
 ## 2. Deep Reinforcement Learning
