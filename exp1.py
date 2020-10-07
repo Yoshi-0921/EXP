@@ -40,7 +40,7 @@ class Exp1:
         self.states = self.env.reset()
         self.populate(config.populate_steps)
         self.reset()
-        self.writer = SummaryWriter()
+        self.writer = SummaryWriter('exp1')
 
         # describe network
         print(self.agents[0].dqn)

@@ -20,9 +20,9 @@ class Exp3_Env(Env):
 
     def reset(self):
         region = (self.world.map.SIZE_X//2) - 1
-        # agentのposの初期化(Static)
+        # agentのposの初期化
         for agent in self.world.agents:
-            agent.state.p_pos = (0, 0)
+            agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
             agent.collide_walls = False
         # landmarkのposの初期化
         for landmark in self.world.landmarks:
@@ -66,7 +66,7 @@ class Exp3_Env(Env):
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
             rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
-                #rew += (1.0 / self.num_agents)
+                #rew += 1.0
                 pass
 
         if agent.collide:
@@ -123,7 +123,7 @@ class Exp3_Env(Env):
 
     def describe_env(self):
         print("""
-    Experiment 3 Environment generated!
+    Experiment 2 Environment generated!
 
     ======================Action======================
     | 0: Stay | 1: Right | 2: Up | 3: Left | 4: Down |
@@ -144,7 +144,7 @@ class Exp3_Map(Map):
     def __init__(self, config):
         super(Exp3_Map, self).__init__()
         self.SIZE_X = config.SIZE_X
-        self.SIZE_Y = config.SIZE_Y
+        self.SIZE_Y = config.SIZE_X
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.agents_pos = dict()

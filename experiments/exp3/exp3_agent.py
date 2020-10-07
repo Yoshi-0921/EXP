@@ -6,63 +6,116 @@ from typing import Tuple
 import numpy as np
 import torch
 from torch import nn, optim
+from torch.nn import functional as F
+from torch.autograd import Variable
 
-from models.exp3 import DQN
+from models.exp3 import Actor, Critic
 from utils.agent import Agent
 from utils.buffer import Experience
-from utils.tools import hard_update
+from utils.tools import soft_update, hard_update
 
 
-class DQNAgent(Agent):
+class DDPGAgent(Agent):
     def __init__(self, obs_size, act_size, config):
-        super(DQNAgent, self).__init__()
+        super(DDPGAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
-        self.dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
-        self.target_dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
+        self.actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.target_actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.target_critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
-        self.optimizer = optim.Adam(params=self.dqn.parameters(),
-                                    lr=config.learning_rate,
-                                    betas=config.betas,
-                                    eps=config.eps)
+        self.actor_optimizer  = optim.Adam(params=self.actor.parameters(),
+                                           lr=config.learning_rate,
+                                           betas=config.betas,
+                                           eps=config.eps)
+        self.critic_optimizer = optim.Adam(params=self.critic.parameters(),
+                                           lr=config.learning_rate,
+                                           betas=config.betas,
+                                           eps=config.eps)
 
-        hard_update(self.target_dqn, self.dqn)
+        hard_update(self.target_actor, self.actor)
+        hard_update(self.target_critic, self.critic)
 
         self.gamma = config.gamma
+        self.tau = config.tau
+        self.obs_size = obs_size
+        self.act_size = act_size
 
     def get_action(self, state, epsilon):
-        self.dqn.eval()
-        q_values = [0]
+        self.actor.eval()
         if np.random.random() < epsilon:
             action = self.random_action()
+            logit = self.onehot_from_action(action)
+            logit = logit.detach().cpu().numpy()
         else:
             with torch.no_grad():
                 state = state.unsqueeze(0).to(self.device)
 
-                q_values = self.dqn(state)
-                _, action = torch.max(q_values, dim=1)
+                logit = self.actor(state)
+                _, action = torch.max(logit, dim=1)
+                logit = logit[0].detach().cpu().numpy()
                 action = int(action.item())
 
-        return action, q_values
+        return action, logit
 
-    def update(self, state, action, reward, done, next_state):
-        self.dqn.eval()
-        self.target_dqn.eval()
-        state_action_values = self.dqn(state).gather(1, action.unsqueeze(-1)).squeeze(-1)
+    def onehot_from_logits(self, logits, eps=0.0):
+        # get best (according to current policy) actions in one-hot form
+        argmax_acs = (logits == logits.max(1, keepdim=True)[0]).float()
+        if eps == 0.0:
+            return argmax_acs
+
+        # get random actions in one-hot form
+        rand_acs = Variable(torch.eye(logits.shape[1])[[np.random.choice(
+            range(logits.shape[1]), size=logits.shape[0])]], requires_grad=False)
+        # chooses between best and random actions using epsilon greedy
+        return torch.stack([argmax_acs[i] if r > eps else rand_acs[i] for i, r in enumerate(torch.rand(logits.shape[0]))])
+
+    def onehot_from_action(self, action):
+        action = Variable(torch.eye(self.act_size)[action], requires_grad=False).to(self.device)
+        return action
+
+    def update(self, state, logit, reward, done, next_state):
+        self.actor.eval()
+        self.target_actor.eval()
+        self.critic.eval()
+        self.target_critic.eval()
+
         with torch.no_grad():
-            next_state_values = self.target_dqn(next_state).max(1)[0]
-            next_state_values[done] = 0.0
-            next_state_values = next_state_values.detach()
-        expected_state_action_values = reward + self.gamma * (1 - done) * next_state_values
+            # Get the actions and the state values to compute the targets
+            next_action_batch = self.target_actor(next_state)
+            next_state_action_values = self.target_critic(next_state, next_action_batch.detach())
 
-        self.dqn.train()
-        self.optimizer.zero_grad()
-        loss = self.criterion(state_action_values, expected_state_action_values)
-        loss.backward()
-        nn.utils.clip_grad_norm_(self.dqn.parameters(), 0.1)
-        self.optimizer.step()
+            # Compute the target
+            reward = reward.unsqueeze(-1)
+            done = done.unsqueeze(-1)
+            expected_values = reward + self.gamma * (1 - done) * next_state_action_values
 
-        return loss
+        self.critic.train()
+        # Update the critic network
+        self.critic_optimizer.zero_grad()
+        state_action_batch = self.critic(state, logit)
+        value_loss = F.mse_loss(state_action_batch, expected_values.detach())
+        value_loss.backward()
+        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
+        self.critic_optimizer.step()
+
+        self.critic.eval()
+        self.actor.train()
+
+        # Update the actor network
+        self.actor_optimizer.zero_grad()
+        policy_loss = -self.critic(state, self.actor(state))
+        policy_loss = policy_loss.mean()
+        policy_loss.backward()
+        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5) # actorの間違い？
+        self.actor_optimizer.step()
+
+        # Update the target networks
+        soft_update(self.target_actor, self.actor, self.tau)
+        soft_update(self.target_critic, self.critic, self.tau)
+
+        return value_loss.item(), policy_loss.item()

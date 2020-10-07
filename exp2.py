@@ -38,7 +38,7 @@ class Exp2:
         self.states = self.env.reset()
         self.populate()
         self.reset()
-        self.writer = SummaryWriter()
+        self.writer = SummaryWriter('exp2')
 
         # describe network
         print(self.agents[0].actor)
