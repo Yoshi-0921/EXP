@@ -24,12 +24,15 @@ Agents and events randomly spawn inside the grid map. Agents aim to approach the
 
 ___
 
-### 1.3 exp3
+### 1.2 maps
 
 Setting up such appropriate environment is quit important.
 Agents interact with the environment and the other agents in the following 38x38 grid map which has 9 rooms of 10x10, separated by 2-width hallways and 1-with wall.
-<p align="center"><img width="250" alt="exp3_map" src="https://user-images.githubusercontent.com/60799014/92319837-5d846480-f057-11ea-9430-2a6174093d82.jpg"></p>
-
+<p align="center"><img width="250" alt="exp3_map" src="https://user-images.githubusercontent.com/60799014/92319837-5d846480-f057-11ea-9430-2a6174093d82.jpg">
+<img width="250" alt="map_1x1" src="https://user-images.githubusercontent.com/60799014/95280381-d0b80b00-088f-11eb-9e5e-df9f64b71f1f.png">
+<img width="250" alt="map_2x2" src="https://user-images.githubusercontent.com/60799014/95280393-dc0b3680-088f-11eb-9708-7bac19a03c93.png">
+<img width="375" alt="map_2x3" src="https://user-images.githubusercontent.com/60799014/95280420-e75e6200-088f-11eb-9a45-ac6ec19623e9.png">
+<img width="250" alt="map_3x3" src="https://user-images.githubusercontent.com/60799014/95280409-e299ae00-088f-11eb-8731-b0c43dd7048b.png"></p>
 Still in progress.
 
 ## 2. Deep Reinforcement Learning
