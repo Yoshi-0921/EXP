@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+'https://github.com/xuehy/pytorch-maddpg'
+
 import warnings
 from random import random
 
@@ -11,7 +13,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from experiments.exp3.exp3_agent import DDPGAgent
+from experiments.exp3.exp3_agent import MADDPGAgent
 from experiments.exp3.exp3_env import Exp3_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
@@ -28,7 +30,7 @@ class Exp3:
         act_size = self.env.action_space
         # initialize for agents
         self.buffer = ReplayBuffer(config.capacity, action_onehot=True)
-        self.agents = [DDPGAgent(obs_size[agent_id], act_size[agent_id], config) for agent_id in range(self.env.num_agents)]
+        self.agents = [MADDPGAgent(obs_size[agent_id], act_size[agent_id], self.env.num_agents, config) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
         self.global_step = 0

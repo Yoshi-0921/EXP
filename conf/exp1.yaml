@@ -17,12 +17,12 @@ betas: [0.9, 0.999]
 eps: 1e-8
 
 # configure training
-max_epochs: 10000
+max_epochs: 20000
 max_episode_length: 20
 batch_size: 64
 populate_steps: 1000
 capacity: 1000000
-decay_epochs: 2000
+decay_epochs: 3000
 synch_epochs: 10000
 
 # configure logs

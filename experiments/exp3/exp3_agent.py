@@ -15,26 +15,26 @@ from utils.buffer import Experience
 from utils.tools import soft_update, hard_update
 
 
-class DDPGAgent(Agent):
-    def __init__(self, obs_size, act_size, config):
+class MADDPGAgent(Agent):
+    def __init__(self, obs_size, act_size, num_agents, config):
         super(DDPGAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
         self.actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.target_actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.target_critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.critic = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.target_critic = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
         self.actor_optimizer  = optim.Adam(params=self.actor.parameters(),
                                            lr=config.learning_rate,
-                                           betas=config.betas,
+                                           betas=[config.beta1, config.beta2],
                                            eps=config.eps)
         self.critic_optimizer = optim.Adam(params=self.critic.parameters(),
                                            lr=config.learning_rate,
-                                           betas=config.betas,
+                                           betas=[config.beta1, config.beta2],
                                            eps=config.eps)
 
         hard_update(self.target_actor, self.actor)
