@@ -11,6 +11,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 from tqdm import tqdm
 
 from experiments.exp3.exp3_agent import MADDPGAgent
@@ -43,9 +44,15 @@ class Exp3:
         self.writer = SummaryWriter('exp3')
 
         # describe network
-        print(self.agents[0].actor)
-        print(self.agents[0].critic)
-        print(self.agents[0].criterion)
+        print("""
+================================================================
+Actor Network Summary:""")
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        summary(self.agents[0].actor, (obs_size[0],), batch_size=self.cfg.batch_size, device=device)
+        print("""
+================================================================
+Critic Network Summary:""")
+        summary(self.agents[0].critic, [(obs_size[0]*self.env.num_agents,), (act_size[0]*self.env.num_agents,)], batch_size=self.cfg.batch_size, device=device)
 
     def populate(self, steps=1000):
         for i in range(steps):

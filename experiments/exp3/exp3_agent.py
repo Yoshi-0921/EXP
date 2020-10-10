@@ -17,7 +17,7 @@ from utils.tools import soft_update, hard_update
 
 class MADDPGAgent(Agent):
     def __init__(self, obs_size, act_size, num_agents, config):
-        super(DDPGAgent, self).__init__()
+        super(MADDPGAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks

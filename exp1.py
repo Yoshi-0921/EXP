@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 from tqdm import tqdm
 
 from experiments.exp1.exp1_agent import DQNAgent
@@ -43,8 +44,11 @@ class Exp1:
         self.writer = SummaryWriter('exp1')
 
         # describe network
-        print(self.agents[0].dqn)
-        print(self.agents[0].criterion)
+        print("""
+================================================================
+DQN Network Summary:""")
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        summary(self.agents[0].dqn, (obs_size[0],), batch_size=self.cfg.batch_size, device=device)
 
     def populate(self, steps: int):
         for i in range(steps):
