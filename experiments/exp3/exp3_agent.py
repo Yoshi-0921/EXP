@@ -9,32 +9,32 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.autograd import Variable
 
-from models.exp2 import Actor, Critic
+from models.exp3 import Actor, Critic
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import soft_update, hard_update
 
 
-class DDPGAgent(Agent):
-    def __init__(self, obs_size, act_size, config):
+class MADDPGAgent(Agent):
+    def __init__(self, obs_size, act_size, num_agents, config):
         super(DDPGAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
         self.actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.target_actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.target_critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.critic = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.target_critic = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
         self.actor_optimizer  = optim.Adam(params=self.actor.parameters(),
                                            lr=config.learning_rate,
-                                           betas=config.betas,
+                                           betas=[config.beta1, config.beta2],
                                            eps=config.eps)
         self.critic_optimizer = optim.Adam(params=self.critic.parameters(),
                                            lr=config.learning_rate,
-                                           betas=config.betas,
+                                           betas=[config.beta1, config.beta2],
                                            eps=config.eps)
 
         hard_update(self.target_actor, self.actor)
@@ -111,7 +111,7 @@ class DDPGAgent(Agent):
         policy_loss = -self.critic(state, self.actor(state))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
-        nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5) # actorの間違い？
         self.actor_optimizer.step()
 
         # Update the target networks

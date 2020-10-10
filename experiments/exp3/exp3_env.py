@@ -3,9 +3,9 @@
 import numpy as np
 from utils.core import Env, World, Agent, Landmark, Map
 
-class Exp2_Env(Env):
+class Exp3_Env(Env):
     def __init__(self, config):
-        super(Exp2_Env, self).__init__()
+        super(Exp3_Env, self).__init__()
         self.world = self.make_world(config)
         self.agents = self.world.agents
         self.num_agents = len(self.world.agents)
@@ -117,7 +117,7 @@ class Exp2_Env(Env):
         for i, landmark in enumerate(world.landmarks):
             landmark.name = f'landmark {i}'
             landmark.collide = False
-        world.map = Exp2_Map(config)
+        world.map = Exp3_Map(config)
 
         return world
 
@@ -140,9 +140,9 @@ class Exp2_Env(Env):
     ==================================================""")
 
 
-class Exp2_Map(Map):
+class Exp3_Map(Map):
     def __init__(self, config):
-        super(Exp2_Map, self).__init__()
+        super(Exp3_Map, self).__init__()
         self.SIZE_X = config.SIZE_X
         self.SIZE_Y = config.SIZE_X
         # 0:walls, 1:agents, 2:landmarks
