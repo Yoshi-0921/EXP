@@ -91,13 +91,13 @@ Critic Network Summary:""")
         # put models on GPU and change to training mode
         for agent in self.agents:
             agent.actor.to(self.device)
-            agent.target_actor.to(self.device)
+            agent.actor_target.to(self.device)
             agent.critic.to(self.device)
-            agent.target_critic.to(self.device)
+            agent.critic_target.to(self.device)
             agent.actor.eval()
-            agent.target_actor.eval()
+            agent.actor_target.eval()
             agent.critic.eval()
-            agent.target_critic.eval()
+            agent.critic_target.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True

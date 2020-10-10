@@ -67,19 +67,19 @@ Critic Network Summary:""")
         value_loss_list, policy_loss_list = list(), list()
         states, logits, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
-            state = states[agent_id].float().to(self.device)
-            logit = logits[agent_id].to(self.device)
-            reward = rewards[agent_id].to(self.device)
-            done = dones[agent_id].to(self.device)
-            next_state = next_states[agent_id].float().to(self.device)
+            states = states.float().to(self.device)
+            logits = logits.to(self.device)
+            rewards = rewards.to(self.device)
+            dones = dones.to(self.device)
+            next_states = next_states.float().to(self.device)
 
             # normalize states in range of [0, 1.0]
-            state[:, 0::2] /= self.env.world.map.SIZE_X
-            state[:, 1::2] /= self.env.world.map.SIZE_Y
-            next_state[:, 0::2] /= self.env.world.map.SIZE_X
-            next_state[:, 1::2] /= self.env.world.map.SIZE_Y
+            states[..., 0::2] /= self.env.world.map.SIZE_X
+            states[..., 1::2] /= self.env.world.map.SIZE_Y
+            next_states[..., 0::2] /= self.env.world.map.SIZE_X
+            next_states[..., 1::2] /= self.env.world.map.SIZE_Y
 
-            value_loss, policy_loss = agent.update(state, logit, reward, done, next_state)
+            value_loss, policy_loss = agent.update(states, logits, rewards, dones, next_states, self.agents, agent_id)
             value_loss_list.append(value_loss)
             policy_loss_list.append(policy_loss)
 
@@ -93,13 +93,13 @@ Critic Network Summary:""")
         # put models on GPU and change to training mode
         for agent in self.agents:
             agent.actor.to(self.device)
-            agent.target_actor.to(self.device)
+            agent.actor_target.to(self.device)
             agent.critic.to(self.device)
-            agent.target_critic.to(self.device)
+            agent.critic_target.to(self.device)
             agent.actor.eval()
-            agent.target_actor.eval()
+            agent.actor_target.eval()
             agent.critic.eval()
-            agent.target_critic.eval()
+            agent.critic_target.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True

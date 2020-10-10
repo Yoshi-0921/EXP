@@ -19,12 +19,13 @@ class MADDPGAgent(Agent):
     def __init__(self, obs_size, act_size, num_agents, config):
         super(MADDPGAgent, self).__init__()
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.cfg = config
 
         # set neural networks
         self.actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.target_actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.actor_target = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.critic = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.target_critic = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.critic_target = Critic(obs_size, act_size, num_agents, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
@@ -37,8 +38,8 @@ class MADDPGAgent(Agent):
                                            betas=[config.beta1, config.beta2],
                                            eps=config.eps)
 
-        hard_update(self.target_actor, self.actor)
-        hard_update(self.target_critic, self.critic)
+        hard_update(self.actor_target, self.actor)
+        hard_update(self.critic_target, self.critic)
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -78,26 +79,30 @@ class MADDPGAgent(Agent):
         action = Variable(torch.eye(self.act_size)[action], requires_grad=False).to(self.device)
         return action
 
-    def update(self, state, logit, reward, done, next_state):
-        self.actor.eval()
-        self.target_actor.eval()
-        self.critic.eval()
-        self.target_critic.eval()
+    def update(self, states, logits, rewards, dones, next_states, agents, my_id):
+        for agent in agents:
+            agent.actor.eval()
+            agent.actor_target.eval()
+            agent.critic.eval()
+            agent.critic_target.eval()
 
         with torch.no_grad():
             # Get the actions and the state values to compute the targets
-            next_action_batch = self.target_actor(next_state)
-            next_state_action_values = self.target_critic(next_state, next_action_batch.detach())
+            next_action_batch = [agent.actor_target(next_state) for agent, next_state in zip(agents, next_states)]
+            next_states = next_states.view(self.cfg.batch_size, -1)
+            next_action_batch = torch.cat(next_action_batch, dim=1)
+            next_state_action_values = self.critic_target(next_states, next_action_batch.detach())
 
             # Compute the target
-            reward = reward.unsqueeze(-1)
-            done = done.unsqueeze(-1)
+            reward = rewards[my_id].unsqueeze(-1)
+            done = dones[my_id].unsqueeze(-1)
             expected_values = reward + self.gamma * (1 - done) * next_state_action_values
 
         self.critic.train()
         # Update the critic network
         self.critic_optimizer.zero_grad()
-        state_action_batch = self.critic(state, logit)
+        logits = logits.view(self.cfg.batch_size, -1)
+        state_action_batch = self.critic(states.view(self.cfg.batch_size, -1), logits)
         value_loss = F.mse_loss(state_action_batch, expected_values.detach())
         value_loss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
@@ -108,14 +113,21 @@ class MADDPGAgent(Agent):
 
         # Update the actor network
         self.actor_optimizer.zero_grad()
-        policy_loss = -self.critic(state, self.actor(state))
+        action_batch = list()
+        for agent_id, agent in enumerate(agents):
+            if agent_id == my_id:
+                action_batch.append(self.actor(states[my_id]))
+            else:
+                with torch.no_grad():
+                    action_batch.append(agent.actor(states[agent_id]))
+        policy_loss = -self.critic(states.view(self.cfg.batch_size, -1), torch.cat(action_batch, dim=1))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
-        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5) # actorの間違い？
+        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
         self.actor_optimizer.step()
 
         # Update the target networks
-        soft_update(self.target_actor, self.actor, self.tau)
-        soft_update(self.target_critic, self.critic, self.tau)
+        soft_update(self.actor_target, self.actor, self.tau)
+        soft_update(self.critic_target, self.critic, self.tau)
 
         return value_loss.item(), policy_loss.item()

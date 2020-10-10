@@ -87,9 +87,9 @@ DQN Network Summary:""")
         # put models on GPU and change to training mode
         for agent in self.agents:
             agent.dqn.to(self.device)
-            agent.target_dqn.to(self.device)
+            agent.dqn_target.to(self.device)
             agent.dqn.train()
-            agent.target_dqn.eval()
+            agent.dqn_target.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True
@@ -128,7 +128,7 @@ DQN Network Summary:""")
                     # update target network
                     if self.global_step % self.cfg.synch_epochs == 0:
                         for agent in self.agents:
-                            hard_update(agent.target_dqn, agent.dqn)
+                            hard_update(agent.dqn_target, agent.dqn)
 
                     # execute in environment
                     epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
