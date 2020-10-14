@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 from torch.nn import functional as F
+from torch.nn.functional import gumbel_softmax, softmax
 from torch.autograd import Variable
 
 from models.exp3 import Actor, Critic
@@ -31,11 +32,11 @@ class MADDPGAgent(Agent):
         # configure optimizer
         self.actor_optimizer  = optim.Adam(params=self.actor.parameters(),
                                            lr=config.learning_rate,
-                                           betas=[config.beta1, config.beta2],
+                                           betas=config.betas,
                                            eps=config.eps)
         self.critic_optimizer = optim.Adam(params=self.critic.parameters(),
                                            lr=config.learning_rate,
-                                           betas=[config.beta1, config.beta2],
+                                           betas=config.betas,
                                            eps=config.eps)
 
         hard_update(self.actor_target, self.actor)
@@ -57,6 +58,7 @@ class MADDPGAgent(Agent):
                 state = state.unsqueeze(0).to(self.device)
 
                 logit = self.actor(state)
+                logit = softmax(logit)
                 _, action = torch.max(logit, dim=1)
                 logit = logit[0].detach().cpu().numpy()
                 action = int(action.item())
@@ -80,15 +82,28 @@ class MADDPGAgent(Agent):
         return action
 
     def update(self, states, logits, rewards, dones, next_states, agents, my_id):
-        for agent in agents:
-            agent.actor.eval()
-            agent.actor_target.eval()
-            agent.critic.eval()
-            agent.critic_target.eval()
+        for agent_id, agent in enumerate(agents):
+            if agent_id == my_id:
+                self.actor.eval()
+                self.actor_target.eval()
+                self.critic.eval()
+                self.critic_target.eval()
+            else:
+                agent.actor.eval()
+                agent.actor_target.eval()
+                agent.critic.eval()
+                agent.critic_target.eval()
 
         with torch.no_grad():
             # Get the actions and the state values to compute the targets
-            next_action_batch = [agent.actor_target(next_state) for agent, next_state in zip(agents, next_states)]
+            next_action_batch = list()
+            for agent_id, agent in enumerate(agents):
+                if agent_id == my_id:
+                    next_action_batch.append(softmax(self.actor_target(next_states[agent_id])))
+                    # onehot_from_logits-> gumbel_softmax hard=True -> softmax
+                else:
+                    next_action_batch.append(self.onehot_from_logits(agent.actor_target(next_states[agent_id])))
+
             next_states = next_states.view(self.cfg.batch_size, -1)
             next_action_batch = torch.cat(next_action_batch, dim=1)
             next_state_action_values = self.critic_target(next_states, next_action_batch.detach())
@@ -116,14 +131,14 @@ class MADDPGAgent(Agent):
         action_batch = list()
         for agent_id, agent in enumerate(agents):
             if agent_id == my_id:
-                action_batch.append(self.actor(states[my_id]))
+                action_batch.append(softmax(self.actor(states[my_id])))
             else:
                 with torch.no_grad():
-                    action_batch.append(agent.actor(states[agent_id]))
+                    action_batch.append(self.onehot_from_logits(agent.actor(states[agent_id])))
         policy_loss = -self.critic(states.view(self.cfg.batch_size, -1), torch.cat(action_batch, dim=1))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
-        nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
+        nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
         self.actor_optimizer.step()
 
         # Update the target networks

@@ -17,7 +17,6 @@ class Actor(nn.Module):
         out = F.relu(self.fc1(x))
         out = F.relu(self.fc2(out))
         out = F.tanh(self.fc3(out))
-        out = F.softmax(out)
         return out
 
 class Critic(nn.Module):

@@ -56,6 +56,7 @@ class DDPGAgent(Agent):
                 state = state.unsqueeze(0).to(self.device)
 
                 logit = self.actor(state)
+                logit = F.softmax(logit)
                 _, action = torch.max(logit, dim=1)
                 logit = logit[0].detach().cpu().numpy()
                 action = int(action.item())
@@ -87,6 +88,7 @@ class DDPGAgent(Agent):
         with torch.no_grad():
             # Get the actions and the state values to compute the targets
             next_action_batch = self.actor_target(next_state)
+            next_action_batch = F.softmax(next_action_batch)
             next_state_action_values = self.critic_target(next_state, next_action_batch.detach())
 
             # Compute the target
@@ -108,7 +110,7 @@ class DDPGAgent(Agent):
 
         # Update the actor network
         self.actor_optimizer.zero_grad()
-        policy_loss = -self.critic(state, self.actor(state))
+        policy_loss = -self.critic(state, F.softmax(self.actor(state)))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)

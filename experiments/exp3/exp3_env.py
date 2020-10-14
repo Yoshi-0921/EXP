@@ -123,7 +123,7 @@ class Exp3_Env(Env):
 
     def describe_env(self):
         print("""
-    Experiment 2 Environment generated!
+    Experiment 3 Environment generated!
 
     ======================Action======================
     | 0: Stay | 1: Right | 2: Up | 3: Left | 4: Down |

@@ -39,7 +39,7 @@ class Exp3:
         self.validation_count = 0
 
         self.states = self.env.reset()
-        self.populate()
+        self.populate(steps=config.populate_steps)
         self.reset()
         self.writer = SummaryWriter('exp3')
 
