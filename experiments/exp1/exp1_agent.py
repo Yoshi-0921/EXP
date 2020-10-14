@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from models.exp1 import DQN
+from models.dqn import DQN
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import hard_update

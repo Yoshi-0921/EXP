@@ -76,6 +76,7 @@ class Exp3_Env(Env):
                     rew -= (1.0 / self.num_agents)
         return rew
 
+
     def __observation(self, agent):
         landmark_pos, other_pos = list(), list()
         # landmarkと他agentとの相対的な距離
