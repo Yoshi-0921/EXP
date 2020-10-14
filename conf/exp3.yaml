@@ -2,28 +2,27 @@ defaults:
   - job_logging: disabled
 
 # configure world
-num_agents: 2
-num_landmarks: 2
+num_agents: 9
+num_landmarks: 9
 
 # configure map
-SIZE_X: 9
-SIZE_Y: 9
+SIZE_X: 5
+SIZE_Y: 5
 
 # configure agent
 hidden1: 32
 hidden2: 32
 gamma: 0.99
-tau: 0.001
+tau: 0.01
 learning_rate: 1e-3
-beta1: 0.9
-beta2: 0.999
+betas: [0.9, 0.999]
 eps: 1e-8
 
 # configure training
 max_epochs: 20000
 max_episode_length: 20
-batch_size: 64
-populate_steps: 1000
+batch_size: 1024
+populate_steps: 1500
 capacity: 1000000
 decay_epochs: 3000
 

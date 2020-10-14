@@ -22,9 +22,9 @@ class DDPGAgent(Agent):
 
         # set neural networks
         self.actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.target_actor = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.actor_target = Actor(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
-        self.target_critic = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
+        self.critic_target = Critic(obs_size, act_size, hidden1=config.hidden1, hidden2=config.hidden2).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
@@ -37,8 +37,8 @@ class DDPGAgent(Agent):
                                            betas=config.betas,
                                            eps=config.eps)
 
-        hard_update(self.target_actor, self.actor)
-        hard_update(self.target_critic, self.critic)
+        hard_update(self.actor_target, self.actor)
+        hard_update(self.critic_target, self.critic)
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -56,6 +56,7 @@ class DDPGAgent(Agent):
                 state = state.unsqueeze(0).to(self.device)
 
                 logit = self.actor(state)
+                logit = F.softmax(logit)
                 _, action = torch.max(logit, dim=1)
                 logit = logit[0].detach().cpu().numpy()
                 action = int(action.item())
@@ -80,14 +81,15 @@ class DDPGAgent(Agent):
 
     def update(self, state, logit, reward, done, next_state):
         self.actor.eval()
-        self.target_actor.eval()
+        self.actor_target.eval()
         self.critic.eval()
-        self.target_critic.eval()
+        self.critic_target.eval()
 
         with torch.no_grad():
             # Get the actions and the state values to compute the targets
-            next_action_batch = self.target_actor(next_state)
-            next_state_action_values = self.target_critic(next_state, next_action_batch.detach())
+            next_action_batch = self.actor_target(next_state)
+            next_action_batch = F.softmax(next_action_batch)
+            next_state_action_values = self.critic_target(next_state, next_action_batch.detach())
 
             # Compute the target
             reward = reward.unsqueeze(-1)
@@ -108,14 +110,14 @@ class DDPGAgent(Agent):
 
         # Update the actor network
         self.actor_optimizer.zero_grad()
-        policy_loss = -self.critic(state, self.actor(state))
+        policy_loss = -self.critic(state, F.softmax(self.actor(state)))
         policy_loss = policy_loss.mean()
         policy_loss.backward()
         nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
         self.actor_optimizer.step()
 
         # Update the target networks
-        soft_update(self.target_actor, self.actor, self.tau)
-        soft_update(self.target_critic, self.critic, self.tau)
+        soft_update(self.actor_target, self.actor, self.tau)
+        soft_update(self.critic_target, self.critic, self.tau)
 
         return value_loss.item(), policy_loss.item()

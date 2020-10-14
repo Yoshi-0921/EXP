@@ -9,6 +9,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 from tqdm import tqdm
 
 from experiments.exp2.exp2_agent import DDPGAgent
@@ -41,9 +42,15 @@ class Exp2:
         self.writer = SummaryWriter('exp2')
 
         # describe network
-        print(self.agents[0].actor)
-        print(self.agents[0].critic)
-        print(self.agents[0].criterion)
+        print("""
+================================================================
+Actor Network Summary:""")
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        summary(self.agents[0].actor, (obs_size[0],), batch_size=self.cfg.batch_size, device=device)
+        print("""
+================================================================
+Critic Network Summary:""")
+        summary(self.agents[0].critic, [(obs_size[0],), (act_size[0],)], batch_size=self.cfg.batch_size, device=device)
 
     def populate(self, steps=1000):
         for i in range(steps):
@@ -84,13 +91,13 @@ class Exp2:
         # put models on GPU and change to training mode
         for agent in self.agents:
             agent.actor.to(self.device)
-            agent.target_actor.to(self.device)
+            agent.actor_target.to(self.device)
             agent.critic.to(self.device)
-            agent.target_critic.to(self.device)
+            agent.critic_target.to(self.device)
             agent.actor.eval()
-            agent.target_actor.eval()
+            agent.actor_target.eval()
             agent.critic.eval()
-            agent.target_critic.eval()
+            agent.critic_target.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True

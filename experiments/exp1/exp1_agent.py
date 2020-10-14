@@ -20,7 +20,7 @@ class DQNAgent(Agent):
 
         # set neural networks
         self.dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
-        self.target_dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
+        self.dqn_target = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
@@ -29,7 +29,7 @@ class DQNAgent(Agent):
                                     betas=config.betas,
                                     eps=config.eps)
 
-        hard_update(self.target_dqn, self.dqn)
+        hard_update(self.dqn_target, self.dqn)
 
         self.gamma = config.gamma
 
@@ -50,10 +50,10 @@ class DQNAgent(Agent):
 
     def update(self, state, action, reward, done, next_state):
         self.dqn.eval()
-        self.target_dqn.eval()
+        self.dqn_target.eval()
         state_action_values = self.dqn(state).gather(1, action.unsqueeze(-1)).squeeze(-1)
         with torch.no_grad():
-            next_state_values = self.target_dqn(next_state).max(1)[0]
+            next_state_values = self.dqn_target(next_state).max(1)[0]
             next_state_values[done] = 0.0
             next_state_values = next_state_values.detach()
         expected_state_action_values = reward + self.gamma * (1 - done) * next_state_values

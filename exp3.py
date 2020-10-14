@@ -11,6 +11,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
 from tqdm import tqdm
 
 from experiments.exp3.exp3_agent import MADDPGAgent
@@ -38,14 +39,20 @@ class Exp3:
         self.validation_count = 0
 
         self.states = self.env.reset()
-        self.populate()
+        self.populate(steps=config.populate_steps)
         self.reset()
         self.writer = SummaryWriter('exp3')
 
         # describe network
-        print(self.agents[0].actor)
-        print(self.agents[0].critic)
-        print(self.agents[0].criterion)
+        print("""
+================================================================
+Actor Network Summary:""")
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        summary(self.agents[0].actor, (obs_size[0],), batch_size=self.cfg.batch_size, device=device)
+        print("""
+================================================================
+Critic Network Summary:""")
+        summary(self.agents[0].critic, [(obs_size[0]*self.env.num_agents,), (act_size[0]*self.env.num_agents,)], batch_size=self.cfg.batch_size, device=device)
 
     def populate(self, steps=1000):
         for i in range(steps):
@@ -60,19 +67,19 @@ class Exp3:
         value_loss_list, policy_loss_list = list(), list()
         states, logits, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
-            state = states[agent_id].float().to(self.device)
-            logit = logits[agent_id].to(self.device)
-            reward = rewards[agent_id].to(self.device)
-            done = dones[agent_id].to(self.device)
-            next_state = next_states[agent_id].float().to(self.device)
+            states = states.float().to(self.device)
+            logits = logits.to(self.device)
+            rewards = rewards.to(self.device)
+            dones = dones.to(self.device)
+            next_states = next_states.float().to(self.device)
 
             # normalize states in range of [0, 1.0]
-            state[:, 0::2] /= self.env.world.map.SIZE_X
-            state[:, 1::2] /= self.env.world.map.SIZE_Y
-            next_state[:, 0::2] /= self.env.world.map.SIZE_X
-            next_state[:, 1::2] /= self.env.world.map.SIZE_Y
+            states[..., 0::2] /= self.env.world.map.SIZE_X
+            states[..., 1::2] /= self.env.world.map.SIZE_Y
+            next_states[..., 0::2] /= self.env.world.map.SIZE_X
+            next_states[..., 1::2] /= self.env.world.map.SIZE_Y
 
-            value_loss, policy_loss = agent.update(state, logit, reward, done, next_state)
+            value_loss, policy_loss = agent.update(states, logits, rewards, dones, next_states, self.agents, agent_id)
             value_loss_list.append(value_loss)
             policy_loss_list.append(policy_loss)
 
@@ -86,13 +93,13 @@ class Exp3:
         # put models on GPU and change to training mode
         for agent in self.agents:
             agent.actor.to(self.device)
-            agent.target_actor.to(self.device)
+            agent.actor_target.to(self.device)
             agent.critic.to(self.device)
-            agent.target_critic.to(self.device)
+            agent.critic_target.to(self.device)
             agent.actor.eval()
-            agent.target_actor.eval()
+            agent.actor_target.eval()
             agent.critic.eval()
-            agent.target_critic.eval()
+            agent.critic_target.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True
