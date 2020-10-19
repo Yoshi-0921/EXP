@@ -24,10 +24,11 @@ class DQNAgent(Agent):
         self.criterion = nn.MSELoss()
 
         # configure optimizer
-        self.optimizer = optim.Adam(params=self.dqn.parameters(),
+        """self.optimizer = optim.Adam(params=self.dqn.parameters(),
                                     lr=config.learning_rate,
                                     betas=config.betas,
-                                    eps=config.eps)
+                                    eps=config.eps)"""
+        self.optimizer = optim.RMSprop(params=self.dqn.parameters(), lr=config.learning_rate)
 
         hard_update(self.dqn_target, self.dqn)
 

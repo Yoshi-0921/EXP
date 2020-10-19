@@ -23,9 +23,14 @@ class Exp4_Env(Env):
     def reset(self):
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
-        for agent in self.world.agents:
-            agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
+        #for agent in self.world.agents:
+            #agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
             #agent.state.p_pos = np.array([0, 0])
+        self.world.agents[0].state.p_pos = np.array([0, 0]) # (12, 12)
+        self.world.agents[1].state.p_pos = np.array([-1, 0]) # (11, 12)
+        self.world.agents[2].state.p_pos = np.array([-1, -1]) # (11, 11)
+        self.world.agents[3].state.p_pos = np.array([0, -1]) # (12, 11)
+        for agent in self.world.agents:
             agent.collide_walls = False
         # landmarkのposの初期化
         self.world.landmarks = [Landmark() for i in range(self.cfg.num_landmarks)]
@@ -45,7 +50,7 @@ class Exp4_Env(Env):
             for y in range(self.world.map.SIZE_Y):
                 if random() < self.world.map.matrix_probs[x, y]:
                     self.world.landmarks.append(Landmark())
-                    self.world.landmarks[-1].state.p_pos = (x, y)
+                    self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
 
     def step(self, action_n):
         obs_n, reward_n, done_n = list(), list(), list()
@@ -62,37 +67,32 @@ class Exp4_Env(Env):
             reward_n.append(self.__reward(agent))
             done_n.append(self.__done(agent))
 
-        # all agents get total reward in cooperative case
-        reward = np.sum(reward_n)
-        reward_n = [reward] * self.num_agents
-
         return obs_n, reward_n, done_n
 
     def __reward(self, agent):
         def is_collision(agent1, agent2):
             delta_pos = agent1.state.p_pos - agent2.state.p_pos
             dist = np.sqrt(np.sum(np.square(delta_pos)))
-            dist_min = agent1.size + agent2.size
-            return True if dist < dist_min else False
+            return True if dist == 0 else False
 
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0.0
         for l_idx, l in enumerate(self.world.landmarks):
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
+            #dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
             #rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
-                rew += (1.0 / self.num_agents)
+                rew += 1.0
                 self.world.landmarks.pop(l_idx)
 
         if agent.collide:
             for a in self.world.agents:
                 if agent == a: continue
                 if is_collision(a, agent):
-                    rew -= (1.0 / self.num_agents)
+                    rew -= 1.0
             # 壁に衝突したら負の報酬
-            """if agent.collide_walls:
-                rew -= (1.0 / self.num_agents)
-                agent.collide_walls = False"""
+            if agent.collide_walls:
+                rew = 1.0
+                agent.collide_walls = False
         return rew
 
     def __observation(self, agent):
@@ -101,8 +101,13 @@ class Exp4_Env(Env):
         # 0:agents, 1:landmarks, 2:invisible area
         obs = np.zeros((3, 7, 7), dtype=np.int8)
 
-        # エージェントの入力(複数体だと追加で必要)
-        obs[0, 3, 3] = 1
+        # エージェントの入力
+        for a in self.world.agents:
+            if abs(a.state.p_pos[0]-agent.state.p_pos[0]) > 3 or abs(a.state.p_pos[1]-agent.state.p_pos[1]) > 3:
+                continue
+            pos_x, pos_y = self.world.map.coord2ind((a.state.p_pos[0]-agent.state.p_pos[0], a.state.p_pos[1]-agent.state.p_pos[1]),
+                                                    size_x=7, size_y=7)
+            obs[1, pos_x, pos_y] = 1
 
         # イベントの入力
         for landmark in self.world.landmarks:
@@ -115,7 +120,7 @@ class Exp4_Env(Env):
         # 壁と見えないセルの入力
         for x in range(7):
             for y in range(7):
-                pos_x, pos_y = self.world.map.coord2ind((x, y), size_x=7, size_y=7)
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
                 pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                 if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
                     obs[2, x, y] = -1
@@ -176,7 +181,8 @@ class Exp4_Env(Env):
     | rew2 : +1 if success                           |
     | rew3 : -1 if is_collision                      |
     | rew1 + rew2 + rew3                             |
-    ==================================================""")
+    ==================================================
+    """)
 
 
 class Exp4_Map(Map):
@@ -210,6 +216,14 @@ class Exp4_Map(Map):
 
         return res
 
+    def ind2coord(self, p_pos, size_x=24, size_y=24):
+        pos_x, pos_y = p_pos
+        pos_x = pos_x - (size_x // 2)
+        pos_y = (size_y // 2) - pos_y
+        res = np.array([pos_x, pos_y])
+
+        return res
+
     def locate_walls(self):
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
@@ -238,11 +252,20 @@ class Exp4_Map(Map):
         """
         イベントの確率分布を設定
         """
-        for x in range(4, 11):
-            for y in range(4, 11):
-                self.matrix_probs[x, y] = 0.01
-
-        for x in range(6, 9):
-            for y in range(6, 9):
-                self.matrix_probs[x, y] = 0.1
-
+        self.matrix_probs + 1e-4
+        # 右上
+        for x in range(16, 21):
+            for y in range(3, 8):
+                self.matrix_probs[x, y] = 1e-3
+        # 左上
+        for x in range(3, 8):
+            for y in range(3, 8):
+                self.matrix_probs[x, y] = 1e-3
+        # 左下
+        for x in range(3, 8):
+            for y in range(16, 21):
+                self.matrix_probs[x, y] = 1e-3
+        # 右下
+        for x in range(16, 21):
+            for y in range(16, 21):
+                self.matrix_probs[x, y] = 1e-3

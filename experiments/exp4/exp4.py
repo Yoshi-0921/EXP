@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import pathlib
 import sys
 import warnings
@@ -12,15 +13,17 @@ warnings.simplefilter('ignore')
 import hydra
 import numpy as np
 import torch
+from experiments.exp4.exp4_agent import DQNAgent
+from experiments.exp4.exp4_env import Exp4_Env
 from omegaconf import DictConfig
 from torch import nn, optim
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
+from torchvision.utils import make_grid
 from tqdm import tqdm
 
-from experiments.exp4.exp4_agent import DQNAgent
-from experiments.exp4.exp4_env import Exp4_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
 from utils.tools import hard_update
@@ -42,10 +45,16 @@ class Exp4:
         self.global_step = 0
         self.episode_count = 0
         self.validation_count = 0
-        self.heatmap_agents = torch.zeros(self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+        self.episode_events_left = 0
+        self.epsilon = 1.0
+        self.heatmap_agents = torch.zeros(self.env.num_agents, 3, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+        self.heatmap_agents[:, 0, ...] = torch.tensor(self.env.world.map.matrix[..., 0])# + (torch.tensor(self.env.world.map.matrix_probs[...] * 3))
+        self.heatmap_agents[:, 1, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
+        self.heatmap_events = torch.zeros(self.env.num_agents, 2, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+        # 3 (blue)はagentの軌跡
 
         self.states = self.env.reset()
-        self.populate(config.populate_steps)
+        self.populate(1000)
         self.reset()
         self.writer = SummaryWriter('exp4')
 
@@ -57,14 +66,22 @@ DQN Network Summary:""")
         summary(self.agents[0].dqn, (3, 7, 7), batch_size=self.cfg.batch_size, device=device)
 
     def populate(self, steps: int):
-        for i in range(steps):
-            _, _, _ = self.play_step(epsilon=1.0)
+        with tqdm(total=steps) as pbar:
+            pbar.set_description('Populating buffer')
+            for i in range(steps):
+                _, _, _ = self.play_step(epsilon=1.0)
+                pbar.update(1)
+            pbar.close()
 
     def reset(self):
         self.states = self.env.reset()
         self.episode_reward = 0
         self.episode_step = 0
-        self.heatmap_agents = torch.zeros(self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+        self.episode_events_left = 0
+        self.heatmap_agents[:, 0, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
+        self.heatmap_agents[:, 1, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
+        self.heatmap_agents[:, 2, ...] = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+        self.heatmap_events = torch.zeros(self.env.num_agents, 2, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
     def loss_and_update(self, batch):
         loss = list()
@@ -83,7 +100,7 @@ DQN Network Summary:""")
     def fit(self):
         # set dataloader
         dataset = RLDataset(self.buffer, self.cfg.batch_size)
-        dataloader = DataLoader(dataset=dataset, batch_size=self.cfg.batch_size)
+        dataloader = DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, pin_memory=True)
 
         # put models on GPU and change to training mode
         for agent in self.agents:
@@ -97,7 +114,7 @@ DQN Network Summary:""")
         with tqdm(total=self.cfg.max_epochs) as pbar:
             for epoch in range(self.cfg.max_epochs):
                 # training phase
-                for step in range(50):
+                for step in range(200):
                     self.global_step += 1
                     self.episode_step += 1
                     total_loss_sum = 0.0
@@ -115,7 +132,9 @@ DQN Network Summary:""")
                             hard_update(agent.dqn_target, agent.dqn)
 
                     # execute in environment
-                    epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
+                    #epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
+                    epsilon = max(0.1, self.epsilon)
+                    self.epsilon *= 0.9999
                     actions, rewards, dones = self.play_step(epsilon)
                     self.episode_reward += np.sum(rewards)
 
@@ -138,7 +157,8 @@ DQN Network Summary:""")
                 self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
                 self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
                 self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
-                self.writer.add_image('episode/heatmap_agents', self.heatmap_agents/torch.max(self.heatmap_agents), self.episode_count, dataformats='HW')
+                self.writer.add_scalar('episode/events_left', torch.tensor(self.episode_events_left), self.episode_count)
+                self.log_heatmaps()
                 self.reset()
 
                 # updates pbar
@@ -162,7 +182,13 @@ DQN Network Summary:""")
 
             # heatmap update
             pos_x, pos_y = self.env.world.map.coord2ind(self.env.agents[agent_id].state.p_pos)
-            self.heatmap_agents[pos_x, pos_y] += 1
+            self.heatmap_agents[agent_id, 2, pos_x, pos_y] += 1
+
+        for landmark in self.env.world.landmarks:
+            pos_x, pos_y = self.env.world.map.coord2ind(landmark.state.p_pos)
+            # eventは黄色
+            self.heatmap_events[..., pos_x, pos_y] += 1
+            self.episode_events_left += 1
 
         new_states, rewards, dones = self.env.step(actions)
 
@@ -173,6 +199,22 @@ DQN Network Summary:""")
         self.states = new_states
 
         return actions, rewards, dones
+
+    def log_heatmaps(self):
+        for i in range(self.env.num_agents):
+            self.heatmap_agents[i, 2, ...] = 0.5 * self.heatmap_agents[i, 2, ...] / torch.max(self.heatmap_agents[i, 2, ...])
+            self.heatmap_agents[i, 2, ...] = torch.where(self.heatmap_agents[i, 2, ...]>0, self.heatmap_agents[i, 2, ...]+0.5, self.heatmap_agents[i, 2, ...])
+
+        # 壁の情報を追加
+        self.heatmap_agents[:, 2, ...] += torch.tensor(self.env.world.map.matrix[..., 0])
+        # eventsの情報を追加
+        self.heatmap_events = 0.8 * self.heatmap_events / torch.max(self.heatmap_events)
+        self.heatmap_events = torch.where(self.heatmap_events>0, self.heatmap_events+0.2, self.heatmap_events)
+        self.heatmap_agents[:, torch.tensor([0, 1]), ...] += self.heatmap_events
+        heatmap_agents = F.interpolate(self.heatmap_agents, size=(self.env.world.map.SIZE_X*10, self.env.world.map.SIZE_Y*10))
+        heatmap_agents = make_grid(heatmap_agents, nrow=2)
+        self.writer.add_image('episode/heatmap_agents', heatmap_agents, self.episode_count, dataformats='CHW')
+
 
 
 @hydra.main(config_path='../../conf/exp4.yaml')
