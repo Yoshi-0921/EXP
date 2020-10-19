@@ -2,12 +2,12 @@ defaults:
   - job_logging: disabled
 
 # configure world
-num_agents: 9
-num_landmarks: 9
+num_agents: 2
+num_landmarks: 2
 
 # configure map
-SIZE_X: 5
-SIZE_Y: 5
+SIZE_X: 9
+SIZE_Y: 9
 
 # configure agent
 hidden1: 32

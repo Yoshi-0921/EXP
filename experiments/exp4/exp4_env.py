@@ -25,6 +25,7 @@ class Exp4_Env(Env):
         # agentのposの初期化
         for agent in self.world.agents:
             agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
+            #agent.state.p_pos = np.array([0, 0])
             agent.collide_walls = False
         # landmarkのposの初期化
         self.world.landmarks = [Landmark() for i in range(self.cfg.num_landmarks)]
@@ -88,11 +89,41 @@ class Exp4_Env(Env):
                 if agent == a: continue
                 if is_collision(a, agent):
                     rew -= (1.0 / self.num_agents)
+            # 壁に衝突したら負の報酬
+            """if agent.collide_walls:
+                rew -= (1.0 / self.num_agents)
+                agent.collide_walls = False"""
         return rew
 
     def __observation(self, agent):
         # 3 x 7 x 7の入力が欲しい
+        #pos_x, pos_y = self.world.map.coord2ind(agent.state.p_pos)
+        # 0:agents, 1:landmarks, 2:invisible area
         obs = np.zeros((3, 7, 7), dtype=np.int8)
+
+        # エージェントの入力(複数体だと追加で必要)
+        obs[0, 3, 3] = 1
+
+        # イベントの入力
+        for landmark in self.world.landmarks:
+            if abs(landmark.state.p_pos[0]-agent.state.p_pos[0]) > 3 or abs(landmark.state.p_pos[1]-agent.state.p_pos[1]) > 3:
+                continue
+            pos_x, pos_y = self.world.map.coord2ind((landmark.state.p_pos[0]-agent.state.p_pos[0], landmark.state.p_pos[1]-agent.state.p_pos[1]),
+                                                    size_x=7, size_y=7)
+            obs[1, pos_x, pos_y] = 1
+
+        # 壁と見えないセルの入力
+        for x in range(7):
+            for y in range(7):
+                pos_x, pos_y = self.world.map.coord2ind((x, y), size_x=7, size_y=7)
+                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                    obs[2, x, y] = -1
+                    continue
+
+                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                    obs[2, x, y] = 1
+
         return obs
 
     def __done(self, agent):
@@ -151,8 +182,8 @@ class Exp4_Env(Env):
 class Exp4_Map(Map):
     def __init__(self, config):
         super(Exp4_Map, self).__init__()
-        self.SIZE_X = 15#24
-        self.SIZE_Y = 15#24
+        self.SIZE_X = 24
+        self.SIZE_Y = 24
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.matrix_probs = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.float)
@@ -171,10 +202,10 @@ class Exp4_Map(Map):
         for agent in agents:
             self.agents_pos[agent.name] = agent.state.p_pos
 
-    def coord2ind(self, p_pos):
+    def coord2ind(self, p_pos, size_x=24, size_y=24):
         pos_x, pos_y = p_pos
-        pos_x = (self.SIZE_X // 2) + pos_x
-        pos_y = (self.SIZE_Y // 2) - pos_y
+        pos_x = (size_x // 2) + pos_x
+        pos_y = (size_y // 2) - pos_y
         res = np.array([pos_x, pos_y])
 
         return res
@@ -182,10 +213,10 @@ class Exp4_Map(Map):
     def locate_walls(self):
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
-        #self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 10, 0] = 1
-        #self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 13, 0] = 1
-        #self.matrix[10, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
-        #self.matrix[13, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
+        self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 10, 0] = 1
+        self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 13, 0] = 1
+        self.matrix[10, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
+        self.matrix[13, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
 
     def locate_agents(self):
         for agent in self.agents:

@@ -171,7 +171,7 @@ class World(object):
     def apply_environment_force(self, p_force):
         for i, agent in enumerate(self.agents):
             next_pos = agent.state.p_pos + p_force[i].astype(np.int64)
-            next_pos = self.map.coord2ind(next_pos)
+            next_pos = self.map.coord2ind(next_pos, self.map.SIZE_X, self.map.SIZE_Y)
             if self.map.matrix[next_pos[0], next_pos[1], 0] == 1:
                 p_force[i] = np.zeros(self.dim_p)
                 agent.collide_walls = True

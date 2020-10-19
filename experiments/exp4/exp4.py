@@ -42,6 +42,7 @@ class Exp4:
         self.global_step = 0
         self.episode_count = 0
         self.validation_count = 0
+        self.heatmap_agents = torch.zeros(self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
         self.states = self.env.reset()
         self.populate(config.populate_steps)
@@ -63,6 +64,7 @@ DQN Network Summary:""")
         self.states = self.env.reset()
         self.episode_reward = 0
         self.episode_step = 0
+        self.heatmap_agents = torch.zeros(self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
     def loss_and_update(self, batch):
         loss = list()
@@ -73,12 +75,6 @@ DQN Network Summary:""")
             reward = rewards[agent_id].to(self.device)
             done = dones[agent_id].to(self.device)
             next_state = next_states[agent_id].float().to(self.device)
-
-            # normalize states and rewards in range of [0, 1.0]
-            state[:, 0::2] /= self.env.world.map.SIZE_X
-            state[:, 1::2] /= self.env.world.map.SIZE_Y
-            next_state[:, 0::2] /= self.env.world.map.SIZE_X
-            next_state[:, 1::2] /= self.env.world.map.SIZE_Y
 
             loss.append(agent.update(state, action, reward, done, next_state))
 
@@ -100,25 +96,8 @@ DQN Network Summary:""")
         torch.backends.cudnn.benchmark = True
         with tqdm(total=self.cfg.max_epochs) as pbar:
             for epoch in range(self.cfg.max_epochs):
-                # validation phase
-                if epoch % (self.cfg.max_epochs//100) == 0:
-                    self.validation_count += 1
-                    val_step = 0
-                    episode_reward = 0.0
-                    while True:
-                        val_step += 1
-                        epsilon = 0.0
-                        actions, rewards, dones = self.play_step(epsilon)
-                        episode_reward += np.sum(rewards)
-
-                        if all(dones) or self.cfg.max_episode_length < val_step:
-                            self.writer.add_scalar('validation/episode_reward', torch.tensor(episode_reward), self.validation_count)
-                            self.writer.add_scalar('validation/episode_step', torch.tensor(val_step), self.validation_count)
-                            self.reset()
-                            break
-
                 # training phase
-                while True:
+                for step in range(50):
                     self.global_step += 1
                     self.episode_step += 1
                     total_loss_sum = 0.0
@@ -155,13 +134,12 @@ DQN Network Summary:""")
     agent: {self.env.agents[0].state.p_pos}
     landmark: {self.env.world.landmarks[0].state.p_pos}""")
 
-                    if all(dones) or self.cfg.max_episode_length < self.episode_step:
-                        self.episode_count += 1
-                        self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
-                        self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
-                        self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
-                        self.reset()
-                        break
+                self.episode_count += 1
+                self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
+                self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
+                self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
+                self.writer.add_image('episode/heatmap_agents', self.heatmap_agents/torch.max(self.heatmap_agents), self.episode_count, dataformats='HW')
+                self.reset()
 
                 # updates pbar
                 pbar.set_description(f'[Step {self.global_step}]')
@@ -178,11 +156,13 @@ DQN Network Summary:""")
         for agent_id, agent in enumerate(self.agents):
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
-            states[:, 0::2] /= self.env.world.map.SIZE_Y
-            states[:, 1::2] /= self.env.world.map.SIZE_Y
 
             action, self.q = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
+
+            # heatmap update
+            pos_x, pos_y = self.env.world.map.coord2ind(self.env.agents[agent_id].state.p_pos)
+            self.heatmap_agents[pos_x, pos_y] += 1
 
         new_states, rewards, dones = self.env.step(actions)
 
