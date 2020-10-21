@@ -25,6 +25,7 @@ class Exp4_Env(Env):
         self.events_completed = 0
         self.agents_collided = 0
         self.walls_collided = 0
+        self.world.map.reset()
 
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
@@ -45,7 +46,6 @@ class Exp4_Env(Env):
         self.world.landmarks = list()
         self.generate_events(20)
 
-        self.world.map.reset(agents=self.world.agents, landmarks=self.world.landmarks)
 
         obs_n = list()
         for agent in self.agents:
@@ -56,7 +56,7 @@ class Exp4_Env(Env):
         #self.world.landmarks.appendしたい
         num_generated = 0
         while num_generated < num_events:
-            x, y = int(random() * self.world.map.SIZE_X), int(random() * self.world.map.SIZE_Y)
+            x, y = 1 + int(random() * (self.world.map.SIZE_X-1)), 1 + int(random() * (self.world.map.SIZE_Y-1))
             if self.world.map.matrix[x, y, 0] == 0 and self.world.map.matrix[x, y, 2] == 0:
                 self.world.landmarks.append(Landmark())
                 self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
@@ -78,7 +78,7 @@ class Exp4_Env(Env):
         # generate events
         #self.generate_events()
         # update map
-        self.world.map.step(self.agents)
+        #self.world.map.step(self.agents)
         # record observation for each agent
         for agent in self.agents:
             obs_n.append(self.__observation(agent))
@@ -99,7 +99,7 @@ class Exp4_Env(Env):
             #dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
             #rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
-                rew += 1.0
+                rew = 1.0
                 self.world.landmarks.pop(l_idx)
                 pos_x, pos_y = self.world.map.coord2ind(l.state.p_pos)
                 self.world.map.matrix[pos_x, pos_y, 2] = 0
@@ -110,11 +110,11 @@ class Exp4_Env(Env):
             for a in self.world.agents:
                 if agent == a: continue
                 if is_collision(a, agent):
-                    rew -= 1.0
+                    rew = -0.05
                     self.agents_collided += 1
             # 壁に衝突したら負の報酬
             if agent.collide_walls:
-                rew = 1.0
+                rew = -0.05
                 agent.collide_walls = False
                 self.walls_collided += 1
         return rew
@@ -131,7 +131,7 @@ class Exp4_Env(Env):
                 continue
             pos_x, pos_y = self.world.map.coord2ind((a.state.p_pos[0]-agent.state.p_pos[0], a.state.p_pos[1]-agent.state.p_pos[1]),
                                                     size_x=7, size_y=7)
-            obs[1, pos_x, pos_y] = 1
+            obs[0, pos_x, pos_y] = 1
 
         # イベントの入力
         for landmark in self.world.landmarks:
@@ -217,20 +217,15 @@ class Exp4_Map(Map):
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.matrix_probs = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.float)
-        self.agents_pos = dict()
-        self.landmarks_pos = dict()
         self.locate_walls()
         self.set_probs()
 
-    def reset(self, agents, landmarks):
-        for agent in agents:
-            self.agents_pos[agent.name] = agent.state.p_pos
-        for landmark in landmarks:
-            self.landmarks_pos[landmark.name] = landmark.state.p_pos
+    def reset(self):
+        self.matrix[..., 2] = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.int8)
 
-    def step(self, agents):
+    """def step(self, agents):
         for agent in agents:
-            self.agents_pos[agent.name] = agent.state.p_pos
+            self.agents_pos[agent.name] = agent.state.p_pos"""
 
     def coord2ind(self, p_pos, size_x=24, size_y=24):
         pos_x, pos_y = p_pos
@@ -277,7 +272,7 @@ class Exp4_Map(Map):
         イベントの確率分布を設定
         """
         self.matrix_probs + 1e-4
-        # 右上
+        """# 右上
         for x in range(16, 21):
             for y in range(3, 8):
                 self.matrix_probs[x, y] = 1e-3
@@ -292,4 +287,4 @@ class Exp4_Map(Map):
         # 右下
         for x in range(16, 21):
             for y in range(16, 21):
-                self.matrix_probs[x, y] = 1e-3
+                self.matrix_probs[x, y] = 1e-3"""
