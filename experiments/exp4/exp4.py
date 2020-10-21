@@ -127,19 +127,17 @@ DQN Network Summary:""")
                             total_loss_sum += loss.item()
 
                     # update target network
-                    if self.global_step % self.cfg.synch_epochs == 0:
+                    if self.global_step % 200 == 0:#:self.cfg.synch_epochs == 0:
                         for agent in self.agents:
                             hard_update(agent.dqn_target, agent.dqn)
 
                     # execute in environment
                     #epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
-                    epsilon = max(0.1, self.epsilon)
-                    self.epsilon *= 0.9999
-                    actions, rewards, dones = self.play_step(epsilon)
+                    actions, rewards, dones = self.play_step(self.epsilon)
                     self.episode_reward += np.sum(rewards)
 
                     # log
-                    self.writer.add_scalar('training/epsilon', torch.tensor(epsilon), self.global_step)
+                    self.writer.add_scalar('training/epsilon', torch.tensor(self.epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
                     self.writer.add_scalar('training/total_loss', torch.tensor(total_loss_sum), self.global_step)
 
@@ -154,10 +152,16 @@ DQN Network Summary:""")
     landmark: {self.env.world.landmarks[0].state.p_pos}""")
 
                 self.episode_count += 1
+                self.epsilon *= 0.999
+                self.epsilon = max(0.05, self.epsilon)
+
                 self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
                 self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
                 self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
-                self.writer.add_scalar('episode/events_left', torch.tensor(self.episode_events_left), self.episode_count)
+                self.writer.add_scalar('env/events_left', torch.tensor(self.env.events_generated-self.env.events_completed), self.episode_count)
+                self.writer.add_scalar('env/events_completed', torch.tensor(self.env.events_completed), self.episode_count)
+                self.writer.add_scalar('env/agents_collided', torch.tensor(self.env.agents_collided), self.episode_count)
+                self.writer.add_scalar('env/walls_collided', torch.tensor(self.env.walls_collided), self.episode_count)
                 self.log_heatmaps()
                 self.reset()
 
@@ -212,9 +216,9 @@ DQN Network Summary:""")
         self.heatmap_events = torch.where(self.heatmap_events>0, self.heatmap_events+0.2, self.heatmap_events)
         self.heatmap_agents[:, torch.tensor([0, 1]), ...] += self.heatmap_events
         heatmap_agents = F.interpolate(self.heatmap_agents, size=(self.env.world.map.SIZE_X*10, self.env.world.map.SIZE_Y*10))
+        heatmap_agents = torch.transpose(heatmap_agents, 2, 3)
         heatmap_agents = make_grid(heatmap_agents, nrow=2)
         self.writer.add_image('episode/heatmap_agents', heatmap_agents, self.episode_count, dataformats='CHW')
-
 
 
 @hydra.main(config_path='../../conf/exp4.yaml')

@@ -21,21 +21,29 @@ class Exp4_Env(Env):
             self.observation_space.append(self.__observation(agent).shape[0])
 
     def reset(self):
+        self.events_generated = 0
+        self.events_completed = 0
+        self.agents_collided = 0
+        self.walls_collided = 0
+
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
         #for agent in self.world.agents:
             #agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
             #agent.state.p_pos = np.array([0, 0])
-        self.world.agents[0].state.p_pos = np.array([0, 0]) # (12, 12)
-        self.world.agents[1].state.p_pos = np.array([-1, 0]) # (11, 12)
-        self.world.agents[2].state.p_pos = np.array([-1, -1]) # (11, 11)
-        self.world.agents[3].state.p_pos = np.array([0, -1]) # (12, 11)
+        for i in range(self.num_agents):
+            if i==0: self.world.agents[0].state.p_pos = np.array([0, 0]) # (12, 12)
+            elif i==1: self.world.agents[1].state.p_pos = np.array([-1, 0]) # (11, 12)
+            elif i==2: self.world.agents[2].state.p_pos = np.array([-1, -1]) # (11, 11)
+            elif i==3: self.world.agents[3].state.p_pos = np.array([0, -1]) # (12, 11)
         for agent in self.world.agents:
             agent.collide_walls = False
         # landmarkのposの初期化
-        self.world.landmarks = [Landmark() for i in range(self.cfg.num_landmarks)]
+        """self.world.landmarks = [Landmark() for i in range(self.cfg.num_landmarks)]
         for landmark in self.world.landmarks:
-            landmark.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
+            landmark.state.p_pos = np.random.randint(-region, region, self.world.dim_p)"""
+        self.world.landmarks = list()
+        self.generate_events(20)
 
         self.world.map.reset(agents=self.world.agents, landmarks=self.world.landmarks)
 
@@ -44,13 +52,23 @@ class Exp4_Env(Env):
             obs_n.append(self.__observation(agent))
         return obs_n
 
-    def generate_events(self):
+    def generate_events(self, num_events):
         #self.world.landmarks.appendしたい
-        for x in range(self.world.map.SIZE_X):
+        num_generated = 0
+        while num_generated < num_events:
+            x, y = int(random() * self.world.map.SIZE_X), int(random() * self.world.map.SIZE_Y)
+            if self.world.map.matrix[x, y, 0] == 0 and self.world.map.matrix[x, y, 2] == 0:
+                self.world.landmarks.append(Landmark())
+                self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
+                self.world.map.matrix[x, y, 2] = 1
+                num_generated += 1
+                self.events_generated += 1
+
+        """for x in range(self.world.map.SIZE_X):
             for y in range(self.world.map.SIZE_Y):
                 if random() < self.world.map.matrix_probs[x, y]:
                     self.world.landmarks.append(Landmark())
-                    self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
+                    self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))"""
 
     def step(self, action_n):
         obs_n, reward_n, done_n = list(), list(), list()
@@ -58,7 +76,7 @@ class Exp4_Env(Env):
             self.__action(action_n[i], agent)
         self.world.step()
         # generate events
-        self.generate_events()
+        #self.generate_events()
         # update map
         self.world.map.step(self.agents)
         # record observation for each agent
@@ -83,16 +101,22 @@ class Exp4_Env(Env):
             if all(agent.state.p_pos == l.state.p_pos):
                 rew += 1.0
                 self.world.landmarks.pop(l_idx)
+                pos_x, pos_y = self.world.map.coord2ind(l.state.p_pos)
+                self.world.map.matrix[pos_x, pos_y, 2] = 0
+                self.events_completed += 1
+                self.generate_events(1)
 
         if agent.collide:
             for a in self.world.agents:
                 if agent == a: continue
                 if is_collision(a, agent):
                     rew -= 1.0
+                    self.agents_collided += 1
             # 壁に衝突したら負の報酬
             if agent.collide_walls:
                 rew = 1.0
                 agent.collide_walls = False
+                self.walls_collided += 1
         return rew
 
     def __observation(self, agent):

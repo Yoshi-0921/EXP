@@ -2,7 +2,7 @@ defaults:
   - job_logging: disabled
 
 # configure world
-num_agents: 4
+num_agents: 2
 num_landmarks: 0
 
 # configure map
