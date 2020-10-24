@@ -1,7 +1,15 @@
 # -*- coding: utf-8 -*-
 
+'https://github.com/xuehy/pytorch-maddpg'
+
+import pathlib
+import sys
 import warnings
 from random import random
+
+current_dir = pathlib.Path(__file__).resolve().parent
+sys.path.append(str(current_dir) + '/../../')
+warnings.simplefilter('ignore')
 
 import hydra
 import numpy as np
@@ -11,25 +19,24 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 from tqdm import tqdm
-
-from experiments.exp2.exp2_agent import DDPGAgent
-from experiments.exp2.exp2_env import Exp2_Env
+from experiments.exp3.exp3_agent import MADDPGAgent
+from experiments.exp3.exp3_env import Exp3_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
 
 warnings.simplefilter('ignore')
 
-class Exp2:
+class Exp3:
     def __init__(self, config):
-        super(Exp2, self).__init__()
+        super(Exp3, self).__init__()
         self.cfg = config
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.env = Exp2_Env(config)
+        self.env = Exp3_Env(config)
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
         self.buffer = ReplayBuffer(config.capacity, action_onehot=True)
-        self.agents = [DDPGAgent(obs_size[agent_id], act_size[agent_id], config) for agent_id in range(self.env.num_agents)]
+        self.agents = [MADDPGAgent(obs_size[agent_id], act_size[agent_id], self.env.num_agents, config) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
         self.global_step = 0
@@ -37,9 +44,9 @@ class Exp2:
         self.validation_count = 0
 
         self.states = self.env.reset()
-        self.populate()
+        self.populate(steps=config.populate_steps)
         self.reset()
-        self.writer = SummaryWriter('exp2')
+        self.writer = SummaryWriter('exp3')
 
         # describe network
         print("""
@@ -50,7 +57,7 @@ Actor Network Summary:""")
         print("""
 ================================================================
 Critic Network Summary:""")
-        summary(self.agents[0].critic, [(obs_size[0],), (act_size[0],)], batch_size=self.cfg.batch_size, device=device)
+        summary(self.agents[0].critic, [(obs_size[0]*self.env.num_agents,), (act_size[0]*self.env.num_agents,)], batch_size=self.cfg.batch_size, device=device)
 
     def populate(self, steps=1000):
         for i in range(steps):
@@ -65,19 +72,19 @@ Critic Network Summary:""")
         value_loss_list, policy_loss_list = list(), list()
         states, logits, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
-            state = states[agent_id].float().to(self.device)
-            logit = logits[agent_id].to(self.device)
-            reward = rewards[agent_id].to(self.device)
-            done = dones[agent_id].to(self.device)
-            next_state = next_states[agent_id].float().to(self.device)
+            states = states.float().to(self.device)
+            logits = logits.to(self.device)
+            rewards = rewards.to(self.device)
+            dones = dones.to(self.device)
+            next_states = next_states.float().to(self.device)
 
             # normalize states in range of [0, 1.0]
-            state[:, 0::2] /= self.env.world.map.SIZE_X
-            state[:, 1::2] /= self.env.world.map.SIZE_Y
-            next_state[:, 0::2] /= self.env.world.map.SIZE_X
-            next_state[:, 1::2] /= self.env.world.map.SIZE_Y
+            states[..., 0::2] /= self.env.world.map.SIZE_X
+            states[..., 1::2] /= self.env.world.map.SIZE_Y
+            next_states[..., 0::2] /= self.env.world.map.SIZE_X
+            next_states[..., 1::2] /= self.env.world.map.SIZE_Y
 
-            value_loss, policy_loss = agent.update(state, logit, reward, done, next_state)
+            value_loss, policy_loss = agent.update(states, logits, rewards, dones, next_states, self.agents, agent_id)
             value_loss_list.append(value_loss)
             policy_loss_list.append(policy_loss)
 
@@ -201,12 +208,12 @@ Critic Network Summary:""")
         return actions, rewards, dones
 
 
-@hydra.main(config_path='conf/exp2.yaml')
+@hydra.main(config_path='../../conf/exp3.yaml')
 def main(config: DictConfig):
     torch.manual_seed(921)
     np.random.seed(921)
 
-    model = Exp2(config=config)
+    model = Exp3(config=config)
     model.fit()
 
 if __name__ == '__main__':

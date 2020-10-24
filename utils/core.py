@@ -74,6 +74,7 @@ class Agent(Entity):
         # agents are movable by default
         self.movable = True
         self.collide_walls = False
+        self.collide_agents = False
         # cannot send communication signals
         self.silent = False
         # cannot observe the world
@@ -163,17 +164,24 @@ class World(object):
         # set applied forces
         for i,agent in enumerate(self.agents):
             if agent.movable:
-                noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
+                #noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
                 p_force[i] = agent.action.u #+ noise
         return p_force
 
     # gather physical forces acting on entities
     def apply_environment_force(self, p_force):
-        for i, agent in enumerate(self.agents):
-            next_pos = agent.state.p_pos + p_force[i].astype(np.int64)
-            next_pos = self.map.coord2ind(next_pos)
+        for agent_id, agent in enumerate(self.agents):
+            next_pos = agent.state.p_pos + p_force[agent_id].astype(np.int64)
+            for i, a in enumerate(self.agents):
+                if agent_id == i:
+                    continue
+                if all(a.state.p_pos == next_pos):
+                    p_force[agent_id] = np.zeros(self.dim_p)
+                    agent.collide_agents = True
+                    break
+            next_pos = self.map.coord2ind(next_pos, self.map.SIZE_X, self.map.SIZE_Y)
             if self.map.matrix[next_pos[0], next_pos[1], 0] == 1:
-                p_force[i] = np.zeros(self.dim_p)
+                p_force[agent_id] = np.zeros(self.dim_p)
                 agent.collide_walls = True
         return p_force
 

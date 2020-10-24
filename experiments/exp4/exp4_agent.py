@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from models.dqn import DQN
+from models.dqn_conv import DQN_Conv
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import hard_update
@@ -19,15 +19,21 @@ class DQNAgent(Agent):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
-        self.dqn = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
-        self.dqn_target = DQN(obs_size, act_size, hidden=config.hidden).to(self.device)
+        self.dqn = DQN_Conv(act_size, config.hidden1, config.hidden2, config.hidden3).to(self.device)
+        self.dqn_target = DQN_Conv(act_size, config.hidden1, config.hidden2, config.hidden3).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer
-        self.optimizer = optim.Adam(params=self.dqn.parameters(),
-                                    lr=config.learning_rate,
-                                    betas=config.betas,
-                                    eps=config.eps)
+        if config.opt.name == 'adam':
+            self.optimizer = optim.Adam(params=self.dqn.parameters(),
+                                        lr=config.opt.learning_rate,
+                                        betas=config.opt.betas,
+                                        eps=config.opt.eps)
+        elif config.opt.name == 'rmsprop':
+            self.optimizer = optim.RMSprop(params=self.dqn.parameters(),
+                                        lr=config.opt.learning_rate,
+                                        alpha=config.opt.alpha,
+                                        eps=config.opt.eps)
 
         hard_update(self.dqn_target, self.dqn)
 
@@ -35,7 +41,6 @@ class DQNAgent(Agent):
 
     def get_action(self, state, epsilon):
         self.dqn.eval()
-        q_values = [0]
         if np.random.random() < epsilon:
             action = self.random_action()
         else:
@@ -46,7 +51,7 @@ class DQNAgent(Agent):
                 _, action = torch.max(q_values, dim=1)
                 action = int(action.item())
 
-        return action, q_values
+        return action
 
     def update(self, state, action, reward, done, next_state):
         self.dqn.eval()

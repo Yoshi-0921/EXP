@@ -1,0 +1,23 @@
+defaults:
+  - opt: rmsprop
+  - job_logging: disabled
+
+# configure world
+num_agents: 1
+num_landmarks: 20
+
+# configure agent
+hidden1: 32
+hidden2: 64
+hidden3: 100
+gamma: 0.9
+
+# configure training
+max_epochs: 20000
+max_episode_length: 200
+batch_size: 32
+populate_steps: 1000
+capacity: 100000
+epsilon_decay: 0.9998
+epsilon_initial: 1.0
+epsilon_end: 0.05

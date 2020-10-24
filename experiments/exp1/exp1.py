@@ -1,37 +1,42 @@
 # -*- coding: utf-8 -*-
 
-'https://github.com/xuehy/pytorch-maddpg'
-
+import pathlib
+import sys
 import warnings
 from random import random
+
+current_dir = pathlib.Path(__file__).resolve().parent
+sys.path.append(str(current_dir) + '/../../')
+warnings.simplefilter('ignore')
 
 import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig
+from torch import nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 from tqdm import tqdm
 
-from experiments.exp3.exp3_agent import MADDPGAgent
-from experiments.exp3.exp3_env import Exp3_Env
+from experiments.exp1.exp1_agent import DQNAgent
+from experiments.exp1.exp1_env import Exp1_Env
 from utils.buffer import Experience, ReplayBuffer
 from utils.dataset import RLDataset
+from utils.tools import hard_update
 
-warnings.simplefilter('ignore')
 
-class Exp3:
+class Exp1:
     def __init__(self, config):
-        super(Exp3, self).__init__()
+        super(Exp1, self).__init__()
         self.cfg = config
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.env = Exp3_Env(config)
+        self.env = Exp1_Env(config)
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
-        self.buffer = ReplayBuffer(config.capacity, action_onehot=True)
-        self.agents = [MADDPGAgent(obs_size[agent_id], act_size[agent_id], self.env.num_agents, config) for agent_id in range(self.env.num_agents)]
+        self.buffer = ReplayBuffer(config.capacity)
+        self.agents = [DQNAgent(obs_size[agent_id], act_size[agent_id], config) for agent_id in range(self.env.num_agents)]
 
         self.total_reward = 0
         self.global_step = 0
@@ -39,22 +44,18 @@ class Exp3:
         self.validation_count = 0
 
         self.states = self.env.reset()
-        self.populate(steps=config.populate_steps)
+        self.populate(config.populate_steps)
         self.reset()
-        self.writer = SummaryWriter('exp3')
+        self.writer = SummaryWriter('exp1')
 
         # describe network
         print("""
 ================================================================
-Actor Network Summary:""")
+DQN Network Summary:""")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        summary(self.agents[0].actor, (obs_size[0],), batch_size=self.cfg.batch_size, device=device)
-        print("""
-================================================================
-Critic Network Summary:""")
-        summary(self.agents[0].critic, [(obs_size[0]*self.env.num_agents,), (act_size[0]*self.env.num_agents,)], batch_size=self.cfg.batch_size, device=device)
+        summary(self.agents[0].dqn, (obs_size[0],), batch_size=self.cfg.batch_size, device=device)
 
-    def populate(self, steps=1000):
+    def populate(self, steps: int):
         for i in range(steps):
             _, _, _ = self.play_step(epsilon=1.0)
 
@@ -64,26 +65,24 @@ Critic Network Summary:""")
         self.episode_step = 0
 
     def loss_and_update(self, batch):
-        value_loss_list, policy_loss_list = list(), list()
-        states, logits, rewards, dones, next_states = batch
+        loss = list()
+        states, actions, rewards, dones, next_states = batch
         for agent_id, agent in enumerate(self.agents):
-            states = states.float().to(self.device)
-            logits = logits.to(self.device)
-            rewards = rewards.to(self.device)
-            dones = dones.to(self.device)
-            next_states = next_states.float().to(self.device)
+            state = states[agent_id].float().to(self.device)
+            action = actions[agent_id].to(self.device)
+            reward = rewards[agent_id].to(self.device)
+            done = dones[agent_id].to(self.device)
+            next_state = next_states[agent_id].float().to(self.device)
 
-            # normalize states in range of [0, 1.0]
-            states[..., 0::2] /= self.env.world.map.SIZE_X
-            states[..., 1::2] /= self.env.world.map.SIZE_Y
-            next_states[..., 0::2] /= self.env.world.map.SIZE_X
-            next_states[..., 1::2] /= self.env.world.map.SIZE_Y
+            # normalize states and rewards in range of [0, 1.0]
+            state[:, 0::2] /= self.env.world.map.SIZE_X
+            state[:, 1::2] /= self.env.world.map.SIZE_Y
+            next_state[:, 0::2] /= self.env.world.map.SIZE_X
+            next_state[:, 1::2] /= self.env.world.map.SIZE_Y
 
-            value_loss, policy_loss = agent.update(states, logits, rewards, dones, next_states, self.agents, agent_id)
-            value_loss_list.append(value_loss)
-            policy_loss_list.append(policy_loss)
+            loss.append(agent.update(state, action, reward, done, next_state))
 
-        return value_loss_list, policy_loss_list
+        return loss
 
     def fit(self):
         # set dataloader
@@ -92,14 +91,10 @@ Critic Network Summary:""")
 
         # put models on GPU and change to training mode
         for agent in self.agents:
-            agent.actor.to(self.device)
-            agent.actor_target.to(self.device)
-            agent.critic.to(self.device)
-            agent.critic_target.to(self.device)
-            agent.actor.eval()
-            agent.actor_target.eval()
-            agent.critic.eval()
-            agent.critic_target.eval()
+            agent.dqn.to(self.device)
+            agent.dqn_target.to(self.device)
+            agent.dqn.train()
+            agent.dqn_target.eval()
 
         # training loop
         torch.backends.cudnn.benchmark = True
@@ -113,7 +108,7 @@ Critic Network Summary:""")
                     while True:
                         val_step += 1
                         epsilon = 0.0
-                        _, rewards, dones = self.play_step(epsilon)
+                        actions, rewards, dones = self.play_step(epsilon)
                         episode_reward += np.sum(rewards)
 
                         if all(dones) or self.cfg.max_episode_length < val_step:
@@ -127,17 +122,18 @@ Critic Network Summary:""")
                     self.global_step += 1
                     self.episode_step += 1
                     total_loss_sum = 0.0
-                    value_loss_sum = 0.0
-                    policy_loss_sum = 0.0
 
                     # train based on experiments
                     for batch in dataloader:
-                        value_loss_list, policy_loss_list = self.loss_and_update(batch)
+                        loss_list = self.loss_and_update(batch)
 
-                        for value_loss, policy_loss in zip(value_loss_list, policy_loss_list):
-                            total_loss_sum += (value_loss + policy_loss)
-                            value_loss_sum += value_loss
-                            policy_loss_sum += policy_loss
+                        for loss in loss_list:
+                            total_loss_sum += loss.item()
+
+                    # update target network
+                    if self.global_step % self.cfg.synch_epochs == 0:
+                        for agent in self.agents:
+                            hard_update(agent.dqn_target, agent.dqn)
 
                     # execute in environment
                     epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
@@ -148,13 +144,11 @@ Critic Network Summary:""")
                     self.writer.add_scalar('training/epsilon', torch.tensor(epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
                     self.writer.add_scalar('training/total_loss', torch.tensor(total_loss_sum), self.global_step)
-                    self.writer.add_scalar('training/value_loss', torch.tensor(value_loss_sum), self.global_step)
-                    self.writer.add_scalar('training/policy_loss', torch.tensor(policy_loss_sum), self.global_step)
 
                     # print on terminal
                     if self.cfg.logs_on_termial and epoch % (self.cfg.max_epochs//10) == 0:
                         print(f"""
-    logits: {self.logits}
+    q_values: {self.q[0]}
     actions: {actions}
     rewards: {rewards}
 
@@ -180,35 +174,33 @@ Critic Network Summary:""")
     @torch.no_grad()
     def play_step(self, epsilon: float = 0.0):
 
-        actions, logits = list(), list()
+        actions = list()
         for agent_id, agent in enumerate(self.agents):
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
             states[:, 0::2] /= self.env.world.map.SIZE_Y
             states[:, 1::2] /= self.env.world.map.SIZE_Y
 
-            action, logit = agent.get_action(states[agent_id], epsilon)
+            action, self.q = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
-            logits.append(logit)
-        self.logits = logits
 
-        next_states, rewards, dones = self.env.step(actions)
+        new_states, rewards, dones = self.env.step(actions)
 
-        exp = Experience(self.states, logits, rewards, dones, next_states)
+        exp = Experience(self.states, actions, rewards, dones, new_states)
 
         self.buffer.append(exp)
 
-        self.states = next_states
+        self.states = new_states
 
         return actions, rewards, dones
 
 
-@hydra.main(config_path='conf/exp3.yaml')
+@hydra.main(config_path='../../conf/exp1.yaml')
 def main(config: DictConfig):
     torch.manual_seed(921)
     np.random.seed(921)
 
-    model = Exp3(config=config)
+    model = Exp1(config=config)
     model.fit()
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@ from torch.nn import functional as F
 from torch.nn.functional import gumbel_softmax, softmax
 from torch.autograd import Variable
 
-from models.exp3 import Actor, Critic
+from models.maddpg import Actor, Critic
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import soft_update, hard_update
