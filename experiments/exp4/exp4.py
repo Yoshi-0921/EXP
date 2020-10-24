@@ -45,18 +45,17 @@ class Exp4:
         self.global_step = 0
         self.episode_count = 0
         self.validation_count = 0
-        self.episode_events_left = 0
-        self.epsilon = 1.0
+        self.epsilon = config.epsilon_initial
         self.heatmap_agents = torch.zeros(self.env.num_agents, 3, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
         self.heatmap_agents[:, 0, ...] = torch.tensor(self.env.world.map.matrix[..., 0])# + (torch.tensor(self.env.world.map.matrix_probs[...] * 3))
         self.heatmap_agents[:, 1, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
-        self.heatmap_events = torch.zeros(self.env.num_agents, 2, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
         # 3 (blue)はagentの軌跡
 
         self.states = self.env.reset()
-        self.populate(1000)
+        self.populate(config.populate_steps)
         self.reset()
         self.writer = SummaryWriter('exp4')
+        torch.backends.cudnn.benchmark = True
 
         # describe network
         print("""
@@ -77,11 +76,9 @@ DQN Network Summary:""")
         self.states = self.env.reset()
         self.episode_reward = 0
         self.episode_step = 0
-        self.episode_events_left = 0
         self.heatmap_agents[:, 0, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
         self.heatmap_agents[:, 1, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
         self.heatmap_agents[:, 2, ...] = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
-        self.heatmap_events = torch.zeros(self.env.num_agents, 2, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
     def loss_and_update(self, batch):
         loss = list()
@@ -94,7 +91,7 @@ DQN Network Summary:""")
             next_state = next_states[agent_id].float().to(self.device)
 
             loss.append(agent.update(state, action, reward, done, next_state))
-
+        loss = torch.from_numpy(np.array(loss, dtype=np.float))
         return loss
 
     def fit(self):
@@ -110,11 +107,10 @@ DQN Network Summary:""")
             agent.dqn_target.eval()
 
         # training loop
-        torch.backends.cudnn.benchmark = True
         with tqdm(total=self.cfg.max_epochs) as pbar:
             for epoch in range(self.cfg.max_epochs):
                 # training phase
-                for step in range(200):
+                for step in range(self.cfg.max_episode_length):
                     self.global_step += 1
                     self.episode_step += 1
                     total_loss_sum = 0.0
@@ -122,38 +118,24 @@ DQN Network Summary:""")
                     # train based on experiments
                     for batch in dataloader:
                         loss_list = self.loss_and_update(batch)
-
-                        for loss in loss_list:
-                            total_loss_sum += loss.item()
-
-                    # update target network
-                    if self.global_step % 200 == 0:#:self.cfg.synch_epochs == 0:
-                        for agent in self.agents:
-                            hard_update(agent.dqn_target, agent.dqn)
+                        total_loss_sum += torch.sum(loss_list)
 
                     # execute in environment
-                    #epsilon = max(0.1, 1.0 - (epoch+1)/self.cfg.decay_epochs)
                     actions, rewards, dones = self.play_step(self.epsilon)
                     self.episode_reward += np.sum(rewards)
 
                     # log
                     self.writer.add_scalar('training/epsilon', torch.tensor(self.epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
-                    self.writer.add_scalar('training/total_loss', torch.tensor(total_loss_sum), self.global_step)
-
-                    # print on terminal
-                    if self.cfg.logs_on_termial and epoch % (self.cfg.max_epochs//10) == 0:
-                        print(f"""
-    q_values: {self.q[0]}
-    actions: {actions}
-    rewards: {rewards}
-
-    agent: {self.env.agents[0].state.p_pos}
-    landmark: {self.env.world.landmarks[0].state.p_pos}""")
+                    self.writer.add_scalar('training/total_loss', total_loss_sum, self.global_step)
 
                 self.episode_count += 1
-                self.epsilon *= 0.999
-                self.epsilon = max(0.05, self.epsilon)
+                self.epsilon *= self.cfg.epsilon_decay
+                self.epsilon = max(self.cfg.epsilon_end, self.epsilon)
+
+                # update target network
+                for agent in self.agents:
+                    hard_update(agent.dqn_target, agent.dqn)
 
                 self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
                 self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
@@ -167,7 +149,7 @@ DQN Network Summary:""")
 
                 # updates pbar
                 pbar.set_description(f'[Step {self.global_step}]')
-                pbar.set_postfix({'loss': total_loss_sum})
+                pbar.set_postfix({'loss': total_loss_sum.item()})
                 pbar.update(1)
 
         self.writer.close()
@@ -181,18 +163,12 @@ DQN Network Summary:""")
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
 
-            action, self.q = agent.get_action(states[agent_id], epsilon)
+            action = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
 
             # heatmap update
             pos_x, pos_y = self.env.world.map.coord2ind(self.env.agents[agent_id].state.p_pos)
             self.heatmap_agents[agent_id, 2, pos_x, pos_y] += 1
-
-        for landmark in self.env.world.landmarks:
-            pos_x, pos_y = self.env.world.map.coord2ind(landmark.state.p_pos)
-            # eventは黄色
-            self.heatmap_events[..., pos_x, pos_y] += 1
-            self.episode_events_left += 1
 
         new_states, rewards, dones = self.env.step(actions)
 
@@ -212,9 +188,9 @@ DQN Network Summary:""")
         # 壁の情報を追加
         self.heatmap_agents[:, 2, ...] += torch.tensor(self.env.world.map.matrix[..., 0])
         # eventsの情報を追加
-        self.heatmap_events = 0.8 * self.heatmap_events / torch.max(self.heatmap_events)
-        self.heatmap_events = torch.where(self.heatmap_events>0, self.heatmap_events+0.2, self.heatmap_events)
-        self.heatmap_agents[:, torch.tensor([0, 1]), ...] += self.heatmap_events
+        heatmap_events = 0.8 * self.env.heatmap_events / torch.max(self.env.heatmap_events)
+        heatmap_events = torch.where(heatmap_events>0, heatmap_events+0.2, heatmap_events)
+        self.heatmap_agents[:, torch.tensor([0, 1]), ...] += heatmap_events
         heatmap_agents = F.interpolate(self.heatmap_agents, size=(self.env.world.map.SIZE_X*10, self.env.world.map.SIZE_Y*10))
         heatmap_agents = torch.transpose(heatmap_agents, 2, 3)
         heatmap_agents = make_grid(heatmap_agents, nrow=2)

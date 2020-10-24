@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
 from random import random
-from utils.core import Env, World, Agent, Landmark, Map
+
+import numpy as np
+import math
+import torch
+from utils.core import Agent, Env, Landmark, Map, World
+
 
 class Exp4_Env(Env):
     def __init__(self, config):
@@ -13,12 +17,12 @@ class Exp4_Env(Env):
         self.num_agents = len(self.world.agents)
         self.action_space, self.observation_space = list(), list()
         self.reset()
-
         self.describe_env()
-
         for agent in self.agents:
-            self.action_space.append(5)
+            self.action_space.append(4)
             self.observation_space.append(self.__observation(agent).shape[0])
+
+        self.heatmap_events = torch.zeros(self.num_agents, 2, self.world.map.SIZE_X, self.world.map.SIZE_Y)
 
     def reset(self):
         self.events_generated = 0
@@ -26,25 +30,21 @@ class Exp4_Env(Env):
         self.agents_collided = 0
         self.walls_collided = 0
         self.world.map.reset()
+        self.heatmap_events = torch.zeros(self.num_agents, 2, self.world.map.SIZE_X, self.world.map.SIZE_Y)
 
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
-        #for agent in self.world.agents:
-            #agent.state.p_pos = np.random.randint(-region, region, self.world.dim_p)
-            #agent.state.p_pos = np.array([0, 0])
         for i in range(self.num_agents):
             if i==0: self.world.agents[0].state.p_pos = np.array([0, 0]) # (12, 12)
             elif i==1: self.world.agents[1].state.p_pos = np.array([-1, 0]) # (11, 12)
             elif i==2: self.world.agents[2].state.p_pos = np.array([-1, -1]) # (11, 11)
             elif i==3: self.world.agents[3].state.p_pos = np.array([0, -1]) # (12, 11)
         for agent in self.world.agents:
+            agent.collide_agents = False
             agent.collide_walls = False
         # landmarkのposの初期化
-        """self.world.landmarks = [Landmark() for i in range(self.cfg.num_landmarks)]
-        for landmark in self.world.landmarks:
-            landmark.state.p_pos = np.random.randint(-region, region, self.world.dim_p)"""
         self.world.landmarks = list()
-        self.generate_events(20)
+        self.generate_events(self.cfg.num_landmarks)
 
 
         obs_n = list()
@@ -61,24 +61,16 @@ class Exp4_Env(Env):
                 self.world.landmarks.append(Landmark())
                 self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
                 self.world.map.matrix[x, y, 2] = 1
+                self.heatmap_events[..., x, y] += 1
                 num_generated += 1
                 self.events_generated += 1
 
-        """for x in range(self.world.map.SIZE_X):
-            for y in range(self.world.map.SIZE_Y):
-                if random() < self.world.map.matrix_probs[x, y]:
-                    self.world.landmarks.append(Landmark())
-                    self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))"""
 
     def step(self, action_n):
         obs_n, reward_n, done_n = list(), list(), list()
         for i, agent in enumerate(self.agents):
             self.__action(action_n[i], agent)
         self.world.step()
-        # generate events
-        #self.generate_events()
-        # update map
-        #self.world.map.step(self.agents)
         # record observation for each agent
         for agent in self.agents:
             obs_n.append(self.__observation(agent))
@@ -96,8 +88,6 @@ class Exp4_Env(Env):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0.0
         for l_idx, l in enumerate(self.world.landmarks):
-            #dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in self.world.agents]
-            #rew -= (min(dists) / (self.world.map.SIZE_X * self.num_agents))
             if all(agent.state.p_pos == l.state.p_pos):
                 rew = 1.0
                 self.world.landmarks.pop(l_idx)
@@ -107,31 +97,99 @@ class Exp4_Env(Env):
                 self.generate_events(1)
 
         if agent.collide:
-            for a in self.world.agents:
-                if agent == a: continue
-                if is_collision(a, agent):
-                    rew = -0.05
-                    self.agents_collided += 1
+            # 他エージェントに衝突したら負の報酬
+            if agent.collide_agents:
+                rew = -1.0
+                agent.collide_agents = False
+                self.agents_collided += 1
             # 壁に衝突したら負の報酬
             if agent.collide_walls:
-                rew = -0.05
+                rew = -1.0
                 agent.collide_walls = False
                 self.walls_collided += 1
         return rew
 
     def __observation(self, agent):
         # 3 x 7 x 7の入力が欲しい
-        #pos_x, pos_y = self.world.map.coord2ind(agent.state.p_pos)
         # 0:agents, 1:landmarks, 2:invisible area
         obs = np.zeros((3, 7, 7), dtype=np.int8)
 
+        # 壁と見えないセルの入力
+        visible_range = 7
+        obs[2, :, :] -= 1
+        for x in range(visible_range):
+            # 自分より上側
+            for y in range(visible_range//2, -1, -1):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                # 場外なら-1
+                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                    obs[2, x, y] = -1
+                    continue
+                # 壁なら-1
+                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                    obs[2, x, y] = -1
+                    break
+                # 何もないなら0
+                else:
+                    obs[2, x, y] = 0
+            # 自分より下側
+            for y in range(visible_range//2, visible_range):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                # 場外なら-1
+                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                    obs[2, x, y] = -1
+                    continue
+                # 壁なら-1
+                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                    obs[2, x, y] = -1
+                    break
+                # 何もないなら0
+                else:
+                    obs[2, x, y] = 0
+        for y in range(visible_range):
+            # 自分より左側
+            for x in range(visible_range//2, -1, -1):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                # 場外なら-1
+                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                    obs[2, x, y] = -1
+                    continue
+                # 壁なら-1
+                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                    obs[2, x, y] = -1
+                    break
+                # 何もないなら0
+                else:
+                    obs[2, x, y] = 0
+            # 自分より右側
+            for x in range(visible_range//2, visible_range):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                # 場外なら-1
+                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                    obs[2, x, y] = -1
+                    continue
+                # 壁なら-1
+                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                    obs[2, x, y] = -1
+                    break
+                # 何もないなら0
+                else:
+                    obs[2, x, y] = 0
+
         # エージェントの入力
         for a in self.world.agents:
-            if abs(a.state.p_pos[0]-agent.state.p_pos[0]) > 3 or abs(a.state.p_pos[1]-agent.state.p_pos[1]) > 3:
+            if abs(a.state.p_pos[0]-agent.state.p_pos[0]) > 3 or abs(a.state.p_pos[1]-agent.state.p_pos[1]) > 3 or \
+               (abs(a.state.p_pos[0]-agent.state.p_pos[0]) == 0 and abs(a.state.p_pos[1]-agent.state.p_pos[1]) == 0):
                 continue
             pos_x, pos_y = self.world.map.coord2ind((a.state.p_pos[0]-agent.state.p_pos[0], a.state.p_pos[1]-agent.state.p_pos[1]),
                                                     size_x=7, size_y=7)
-            obs[0, pos_x, pos_y] = 1
+            # 見える範囲なら追加
+            if obs[2, pos_x, pos_y] != -1:
+                obs[0, pos_x, pos_y] = 1
 
         # イベントの入力
         for landmark in self.world.landmarks:
@@ -139,19 +197,9 @@ class Exp4_Env(Env):
                 continue
             pos_x, pos_y = self.world.map.coord2ind((landmark.state.p_pos[0]-agent.state.p_pos[0], landmark.state.p_pos[1]-agent.state.p_pos[1]),
                                                     size_x=7, size_y=7)
-            obs[1, pos_x, pos_y] = 1
-
-        # 壁と見えないセルの入力
-        for x in range(7):
-            for y in range(7):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
-                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
-                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                    obs[2, x, y] = -1
-                    continue
-
-                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                    obs[2, x, y] = 1
+            # 見える範囲なら追加
+            if obs[2, pos_x, pos_y] != -1:
+                obs[1, pos_x, pos_y] = 1
 
         return obs
 
@@ -168,10 +216,10 @@ class Exp4_Env(Env):
 
         if agent.movable:
             agent.action.u = np.zeros(self.world.dim_p)
-            if action == 1: agent.action.u[0] = 1.0
-            elif action == 2: agent.action.u[1] = 1.0
-            elif action == 3: agent.action.u[0] = -1.0
-            elif action == 4: agent.action.u[1] = -1.0
+            if action == 0: agent.action.u[0] = 1.0
+            elif action == 1: agent.action.u[1] = 1.0
+            elif action == 2: agent.action.u[0] = -1.0
+            elif action == 3: agent.action.u[1] = -1.0
 
     def make_world(self, config):
         world = World()
@@ -194,17 +242,16 @@ class Exp4_Env(Env):
     Experiment 4 Environment generated!
 
     ======================Action======================
-    | 0: Stay | 1: Right | 2: Up | 3: Left | 4: Down |
+    | 0: Right | 1: Up | 2: Left | 3: Down | ------- |
     ===================State(agent)===================
-    | obs1 : [agent.state.p_pos]                     |
-    | obs2 : entity_pos                              |
-    | obs3: other_pos                                |
-    | np.concatenate(ob1 + obs2 + obs3)              |
+    | obs1 : 7x7 obs of agents                       |
+    | obs2 : 7x7 obs of events                       |
+    | obs3: 7x7 invisible area                       |
+    | np.stack(ob1 + obs2 + obs3)                    |
     ======================Reward======================
-    | rew1 : -min(dist) / SIZE_X                     |
-    | rew2 : +1 if success                           |
-    | rew3 : -1 if is_collision                      |
-    | rew1 + rew2 + rew3                             |
+    | rew1: +1 if success                            |
+    | rew2 : -1 if is_collision                      |
+    | rew1 + rew2                                    |
     ==================================================
     """)
 
@@ -222,10 +269,6 @@ class Exp4_Map(Map):
 
     def reset(self):
         self.matrix[..., 2] = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.int8)
-
-    """def step(self, agents):
-        for agent in agents:
-            self.agents_pos[agent.name] = agent.state.p_pos"""
 
     def coord2ind(self, p_pos, size_x=24, size_y=24):
         pos_x, pos_y = p_pos
@@ -271,7 +314,7 @@ class Exp4_Map(Map):
         """
         イベントの確率分布を設定
         """
-        self.matrix_probs + 1e-4
+        pass
         """# 右上
         for x in range(16, 21):
             for y in range(3, 8):
