@@ -3,7 +3,7 @@ defaults:
   - job_logging: disabled
 
 # configure world
-num_agents: 1
+num_agents: 4
 num_landmarks: 20
 
 # configure agent
@@ -11,6 +11,10 @@ hidden1: 32
 hidden2: 64
 hidden3: 100
 gamma: 0.9
+
+phase: 'validate'
+     # 'training'
+     # 'validate'
 
 # configure training
 max_epochs: 20000
@@ -21,3 +25,9 @@ capacity: 100000
 epsilon_decay: 0.9998
 epsilon_initial: 1.0
 epsilon_end: 0.05
+
+# configre validate
+validate_epochs: 3
+model_path: '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_1agent.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'
