@@ -7,12 +7,13 @@ num_agents: 4
 num_landmarks: 20
 
 # configure agent
+visible_range: 7
 hidden1: 32
 hidden2: 64
 hidden3: 100
 gamma: 0.9
 
-phase: 'validate'
+phase: 'training'
      # 'training'
      # 'validate'
 

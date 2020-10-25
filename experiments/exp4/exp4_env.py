@@ -15,12 +15,14 @@ class Exp4_Env(Env):
         self.world = self.make_world(config)
         self.agents = self.world.agents
         self.num_agents = len(self.world.agents)
+        self.num_landmarks = config.num_landmarks
+        self.visible_range = config.visible_range
         self.action_space, self.observation_space = list(), list()
         self.reset()
         self.describe_env()
         for agent in self.agents:
             self.action_space.append(4)
-            self.observation_space.append(self.__observation(agent).shape[0])
+            self.observation_space.append(config.visible_range)
 
     def reset(self):
         self.events_generated = 0
@@ -47,7 +49,7 @@ class Exp4_Env(Env):
             agent.collide_walls = False
         # landmarkのposの初期化
         self.world.landmarks = list()
-        self.generate_events(self.cfg.num_landmarks)
+        self.generate_events(self.num_landmarks)
 
         obs_n = list()
         for agent in self.agents:
@@ -120,17 +122,16 @@ class Exp4_Env(Env):
         return rew
 
     def __observation(self, agent):
-        # 3 x 7 x 7の入力が欲しい
+        # 3 x visible_range x visible_rangeの入力が欲しい
         # 0:agents, 1:landmarks, 2:invisible area
-        obs = np.zeros((3, 7, 7), dtype=np.int8)
+        obs = np.zeros((3, self.visible_range, self.visible_range), dtype=np.int8)
 
         # 壁と見えないセルの入力
-        visible_range = 7
         obs[2, :, :] -= 1
-        for x in range(visible_range):
+        for x in range(self.visible_range):
             # 自分より上側
-            for y in range(visible_range//2, -1, -1):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+            for y in range(self.visible_range//2, -1, -1):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=self.visible_range, size_y=self.visible_range)
                 pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                 # 場外なら-1
                 if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
@@ -144,7 +145,7 @@ class Exp4_Env(Env):
                 else:
                     obs[2, x, y] = 0
             # 自分より下側
-            for y in range(visible_range//2, visible_range):
+            for y in range(self.visible_range//2, self.visible_range):
                 pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
                 pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                 # 場外なら-1
@@ -158,10 +159,10 @@ class Exp4_Env(Env):
                 # 何もないなら0
                 else:
                     obs[2, x, y] = 0
-        for y in range(visible_range):
+        for y in range(self.visible_range):
             # 自分より左側
-            for x in range(visible_range//2, -1, -1):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+            for x in range(self.visible_range//2, -1, -1):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=self.visible_range, size_y=self.visible_range)
                 pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                 # 場外なら-1
                 if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
@@ -175,8 +176,8 @@ class Exp4_Env(Env):
                 else:
                     obs[2, x, y] = 0
             # 自分より右側
-            for x in range(visible_range//2, visible_range):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
+            for x in range(self.visible_range//2, self.visible_range):
+                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=self.visible_range, size_y=self.visible_range)
                 pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                 # 場外なら-1
                 if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
@@ -196,7 +197,7 @@ class Exp4_Env(Env):
                (abs(a.state.p_pos[0]-agent.state.p_pos[0]) == 0 and abs(a.state.p_pos[1]-agent.state.p_pos[1]) == 0):
                 continue
             pos_x, pos_y = self.world.map.coord2ind((a.state.p_pos[0]-agent.state.p_pos[0], a.state.p_pos[1]-agent.state.p_pos[1]),
-                                                    size_x=7, size_y=7)
+                                                    size_x=self.visible_range, size_y=self.visible_range)
             # 見える範囲なら追加
             if obs[2, pos_x, pos_y] != -1:
                 obs[0, pos_x, pos_y] = 1
@@ -206,7 +207,7 @@ class Exp4_Env(Env):
             if abs(landmark.state.p_pos[0]-agent.state.p_pos[0]) > 3 or abs(landmark.state.p_pos[1]-agent.state.p_pos[1]) > 3:
                 continue
             pos_x, pos_y = self.world.map.coord2ind((landmark.state.p_pos[0]-agent.state.p_pos[0], landmark.state.p_pos[1]-agent.state.p_pos[1]),
-                                                    size_x=7, size_y=7)
+                                                    size_x=self.visible_range, size_y=self.visible_range)
             # 見える範囲なら追加
             if obs[2, pos_x, pos_y] != -1:
                 obs[1, pos_x, pos_y] = 1

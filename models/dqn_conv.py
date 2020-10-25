@@ -13,11 +13,15 @@ class DQN_Conv(nn.Module):
         hidden: size of hidden layers
     """
 
-    def __init__(self, n_actions: int, hidden1: int = 32, hidden2: int = 64, hidden3: int = 100):
+    def __init__(self, obs_size: int, n_actions: int, hidden1: int = 32, hidden2: int = 64, hidden3: int = 100):
         super(DQN_Conv, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=hidden1, kernel_size=2, stride=1)
+        obs_size = 1 + (obs_size - 2) // 1
+        obs_size = 1 + (obs_size - 2) // 2
         self.conv2 = nn.Conv2d(in_channels=hidden1, out_channels=hidden2, kernel_size=2, stride=1)
-        self.fc1 = nn.Linear(hidden2, hidden3)
+        obs_size = 1 + (obs_size - 2) // 1
+        obs_size = 1 + (obs_size - 2) // 2
+        self.fc1 = nn.Linear(hidden2*(obs_size**2), hidden3)
         self.fc2 = nn.Linear(hidden3, n_actions)
 
     def forward(self, x):

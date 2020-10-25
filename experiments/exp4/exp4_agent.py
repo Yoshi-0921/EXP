@@ -19,8 +19,8 @@ class DQNAgent(Agent):
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
         # set neural networks
-        self.dqn = DQN_Conv(act_size, config.hidden1, config.hidden2, config.hidden3).to(self.device)
-        self.dqn_target = DQN_Conv(act_size, config.hidden1, config.hidden2, config.hidden3).to(self.device)
+        self.dqn = DQN_Conv(obs_size, act_size, config.hidden1, config.hidden2, config.hidden3).to(self.device)
+        self.dqn_target = DQN_Conv(obs_size, act_size, config.hidden1, config.hidden2, config.hidden3).to(self.device)
         self.criterion = nn.MSELoss()
 
         # configure optimizer

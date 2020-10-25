@@ -60,7 +60,7 @@ class Exp4:
 ================================================================
 DQN Network Summary:""")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        summary(self.agents[0].dqn, (3, 7, 7), batch_size=self.cfg.batch_size, device=device)
+        summary(self.agents[0].dqn, (3, obs_size[0], obs_size[0]), batch_size=config.batch_size, device=device)
 
     def populate(self, steps: int):
         with tqdm(total=steps) as pbar:
