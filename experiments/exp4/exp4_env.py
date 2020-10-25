@@ -281,7 +281,10 @@ class Exp4_Map(Map):
     def reset(self):
         self.matrix[..., 2] = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.int8)
 
-    def coord2ind(self, p_pos, size_x=24, size_y=24):
+    def coord2ind(self, p_pos, size_x=None, size_y=None):
+        if size_x == None:
+            size_x = self.SIZE_X
+            size_y = self.SIZE_Y
         pos_x, pos_y = p_pos
         pos_x = (size_x // 2) + pos_x
         pos_y = (size_y // 2) - pos_y
@@ -289,7 +292,10 @@ class Exp4_Map(Map):
 
         return res
 
-    def ind2coord(self, p_pos, size_x=24, size_y=24):
+    def ind2coord(self, p_pos, size_x=None, size_y=None):
+        if size_x == None:
+            size_x = self.SIZE_X
+            size_y = self.SIZE_Y
         pos_x, pos_y = p_pos
         pos_x = pos_x - (size_x // 2)
         pos_y = (size_y // 2) - pos_y
