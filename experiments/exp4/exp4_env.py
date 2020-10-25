@@ -22,15 +22,17 @@ class Exp4_Env(Env):
             self.action_space.append(4)
             self.observation_space.append(self.__observation(agent).shape[0])
 
-        self.heatmap_events = torch.zeros(self.num_agents, 2, self.world.map.SIZE_X, self.world.map.SIZE_Y)
-
     def reset(self):
         self.events_generated = 0
         self.events_completed = 0
         self.agents_collided = 0
         self.walls_collided = 0
         self.world.map.reset()
-        self.heatmap_events = torch.zeros(self.num_agents, 2, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_complete = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_events = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_wall_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
 
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
@@ -46,7 +48,6 @@ class Exp4_Env(Env):
         self.world.landmarks = list()
         self.generate_events(self.cfg.num_landmarks)
 
-
         obs_n = list()
         for agent in self.agents:
             obs_n.append(self.__observation(agent))
@@ -61,29 +62,33 @@ class Exp4_Env(Env):
                 self.world.landmarks.append(Landmark())
                 self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
                 self.world.map.matrix[x, y, 2] = 1
-                self.heatmap_events[..., x, y] += 1
+                self.heatmap_events[x, y] += 1
                 num_generated += 1
                 self.events_generated += 1
 
 
     def step(self, action_n):
         obs_n, reward_n, done_n = list(), list(), list()
-        for i, agent in enumerate(self.agents):
-            self.__action(action_n[i], agent)
+        for agent_id, agent in enumerate(self.agents):
+            self.__action(action_n[agent_id], agent)
         self.world.step()
         # record observation for each agent
-        for agent in self.agents:
+        for agent_id, agent in enumerate(self.agents):
             obs_n.append(self.__observation(agent))
-            reward_n.append(self.__reward(agent))
+            reward_n.append(self.__reward(agent_id, agent))
             done_n.append(self.__done(agent))
 
         return obs_n, reward_n, done_n
 
-    def __reward(self, agent):
+    def __reward(self, agent_id, agent):
         def is_collision(agent1, agent2):
             delta_pos = agent1.state.p_pos - agent2.state.p_pos
             dist = np.sqrt(np.sum(np.square(delta_pos)))
             return True if dist == 0 else False
+
+        # heatmap update
+        a_pos_x, a_pos_y = self.world.map.coord2ind(agent.state.p_pos)
+        self.heatmap_agents[agent_id, a_pos_x, a_pos_y] += 1
 
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0.0
@@ -91,9 +96,10 @@ class Exp4_Env(Env):
             if all(agent.state.p_pos == l.state.p_pos):
                 rew = 1.0
                 self.world.landmarks.pop(l_idx)
-                pos_x, pos_y = self.world.map.coord2ind(l.state.p_pos)
-                self.world.map.matrix[pos_x, pos_y, 2] = 0
+                e_pos_x, e_pos_y = self.world.map.coord2ind(l.state.p_pos)
+                self.world.map.matrix[e_pos_x, e_pos_y, 2] = 0
                 self.events_completed += 1
+                self.heatmap_complete[agent_id, e_pos_x, e_pos_y] += 1
                 self.generate_events(1)
 
         if agent.collide:
@@ -101,11 +107,13 @@ class Exp4_Env(Env):
             if agent.collide_agents:
                 rew = -1.0
                 agent.collide_agents = False
+                self.heatmap_agents_collision[a_pos_x, a_pos_y] += 1
                 self.agents_collided += 1
             # 壁に衝突したら負の報酬
             if agent.collide_walls:
                 rew = -1.0
                 agent.collide_walls = False
+                self.heatmap_wall_collision[a_pos_x, a_pos_y] += 1
                 self.walls_collided += 1
         return rew
 

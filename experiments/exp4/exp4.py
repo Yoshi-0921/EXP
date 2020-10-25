@@ -11,7 +11,9 @@ sys.path.append(str(current_dir) + '/../../')
 warnings.simplefilter('ignore')
 
 import hydra
+import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 from experiments.exp4.exp4_agent import DQNAgent
 from experiments.exp4.exp4_env import Exp4_Env
@@ -52,11 +54,7 @@ class Exp4:
         # 3 (blue)はagentの軌跡
 
         self.states = self.env.reset()
-        self.populate(config.populate_steps)
-        self.reset()
-        self.writer = SummaryWriter('exp4')
         torch.backends.cudnn.benchmark = True
-
         # describe network
         print("""
 ================================================================
@@ -95,6 +93,7 @@ DQN Network Summary:""")
         return loss
 
     def fit(self):
+        self.writer = SummaryWriter('exp4')
         # set dataloader
         dataset = RLDataset(self.buffer, self.cfg.batch_size)
         dataloader = DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, pin_memory=True)
@@ -105,6 +104,10 @@ DQN Network Summary:""")
             agent.dqn_target.to(self.device)
             agent.dqn.train()
             agent.dqn_target.eval()
+
+        # populate buffer
+        self.populate(self.cfg.populate_steps)
+        self.reset()
 
         # training loop
         with tqdm(total=self.cfg.max_epochs) as pbar:
@@ -155,6 +158,29 @@ DQN Network Summary:""")
         self.writer.close()
         pbar.close()
 
+        model_path = 'model.pth'
+        torch.save(self.agents[0].dqn.to('cpu').state_dict(), model_path)
+
+    def validate(self):
+        # put models on GPU and change to eval mode
+        for agent in self.agents:
+            agent.dqn.to(self.device)
+            agent.dqn_target.to(self.device)
+            agent.dqn.eval()
+            agent.dqn_target.eval()
+
+        with tqdm(total=self.cfg.validate_epochs) as pbar:
+            for epoch in range(self.cfg.validate_epochs):
+                for step in range(self.cfg.max_episode_length):
+                    actions, rewards, dones = self.play_step()
+                self.log_validate(epoch)
+                self.reset()
+                # updates pbar
+                pbar.set_description('Validation')
+                pbar.update(1)
+
+        pbar.close()
+
     @torch.no_grad()
     def play_step(self, epsilon: float = 0.0):
 
@@ -196,6 +222,71 @@ DQN Network Summary:""")
         heatmap_agents = make_grid(heatmap_agents, nrow=2)
         self.writer.add_image('episode/heatmap_agents', heatmap_agents, self.episode_count, dataformats='CHW')
 
+    def log_validate(self, epoch):
+        # make directory
+        path = 'validate'
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        epoch_path = os.path.join(path, 'epoch_'+str(epoch))
+        hm_agents_path = os.path.join(epoch_path, 'hm_agents')
+        hm_complete_path = os.path.join(epoch_path, 'hm_complete')
+        os.mkdir(epoch_path)
+        os.mkdir(hm_agents_path)
+        os.mkdir(hm_complete_path)
+
+        size_x = self.env.world.map.SIZE_X // 2
+        size_y = self.env.world.map.SIZE_Y // 2
+        for agent_id, agent in enumerate(self.agents):
+            fig = plt.figure()
+            sns.heatmap(
+                self.env.heatmap_agents[agent_id], vmin=0, cmap='Blues',
+                xticklabels=list(str(x) for x in range(-size_x, size_x)),
+                yticklabels=list(str(y) for y in range(-size_y, size_y))
+            )
+            plt.title(f'Agent {agent_id}')
+            fig.savefig(os.path.join(hm_agents_path, f'agent_{agent_id}.png'))
+            plt.close()
+
+            fig = plt.figure()
+            sns.heatmap(
+                self.env.heatmap_complete[agent_id], vmin=0, cmap='Blues',
+                xticklabels=list(str(x) for x in range(-size_x, size_x)),
+                yticklabels=list(str(y) for y in range(-size_y, size_y))
+            )
+            plt.title(f'Agent {agent_id}')
+            fig.savefig(os.path.join(hm_complete_path, f'agent_{agent_id}.png'))
+            plt.close()
+
+        fig = plt.figure()
+        sns.heatmap(
+            self.env.heatmap_events, vmin=0, cmap='Blues',
+            xticklabels=list(str(x) for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) for y in range(-size_y, size_y))
+        )
+        plt.title(f'Agent {agent_id}')
+        fig.savefig(os.path.join(epoch_path, 'hm_events.png'))
+        plt.close()
+
+        fig = plt.figure()
+        sns.heatmap(
+            self.env.heatmap_wall_collision, vmin=0, cmap='Blues',
+            xticklabels=list(str(x) for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) for y in range(-size_y, size_y))
+        )
+        plt.title(f'Agent {agent_id}')
+        fig.savefig(os.path.join(epoch_path, 'hm_wall_collision.png'))
+        plt.close()
+
+        fig = plt.figure()
+        sns.heatmap(
+            self.env.heatmap_agents_collision, vmin=0, cmap='Blues',
+            xticklabels=list(str(x) for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) for y in range(-size_y, size_y))
+        )
+        plt.title(f'Agent {agent_id}')
+        fig.savefig(os.path.join(epoch_path, 'hm_agents_collision.png'))
+        plt.close()
+
 
 @hydra.main(config_path='../../conf/exp4.yaml')
 def main(config: DictConfig):
@@ -203,7 +294,10 @@ def main(config: DictConfig):
     np.random.seed(921)
 
     model = Exp4(config=config)
-    model.fit()
+    if config.phase == 'training':
+        model.fit()
+    elif config.phase == 'validate':
+        model.validate()
 
 if __name__ == '__main__':
     main()
