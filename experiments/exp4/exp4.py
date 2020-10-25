@@ -237,9 +237,10 @@ DQN Network Summary:""")
         size_x = self.env.world.map.SIZE_X // 2
         size_y = self.env.world.map.SIZE_Y // 2
         for agent_id, agent in enumerate(self.agents):
+            # log heatmap_agents
             fig = plt.figure()
             sns.heatmap(
-                self.env.heatmap_agents[agent_id], vmin=0, cmap='Blues',
+                self.env.heatmap_agents[agent_id], vmin=0, cmap='Blues', square=True,
                 xticklabels=list(str(x) for x in range(-size_x, size_x)),
                 yticklabels=list(str(y) for y in range(-size_y, size_y))
             )
@@ -247,9 +248,10 @@ DQN Network Summary:""")
             fig.savefig(os.path.join(hm_agents_path, f'agent_{agent_id}.png'))
             plt.close()
 
+            # log heatmap_complete
             fig = plt.figure()
             sns.heatmap(
-                self.env.heatmap_complete[agent_id], vmin=0, cmap='Blues',
+                self.env.heatmap_complete[agent_id], vmin=0, cmap='Blues', square=True,
                 xticklabels=list(str(x) for x in range(-size_x, size_x)),
                 yticklabels=list(str(y) for y in range(-size_y, size_y))
             )
@@ -257,33 +259,43 @@ DQN Network Summary:""")
             fig.savefig(os.path.join(hm_complete_path, f'agent_{agent_id}.png'))
             plt.close()
 
+        # log heatmap_events
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_events, vmin=0, cmap='Blues',
+            self.env.heatmap_events, vmin=0, cmap='Blues', square=True,
             xticklabels=list(str(x) for x in range(-size_x, size_x)),
             yticklabels=list(str(y) for y in range(-size_y, size_y))
         )
-        plt.title(f'Agent {agent_id}')
         fig.savefig(os.path.join(epoch_path, 'hm_events.png'))
         plt.close()
 
+        # log heatmap_events_left
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_wall_collision, vmin=0, cmap='Blues',
+            self.env.heatmap_events_left, vmin=0, cmap='viridis', square=True,
             xticklabels=list(str(x) for x in range(-size_x, size_x)),
             yticklabels=list(str(y) for y in range(-size_y, size_y))
         )
-        plt.title(f'Agent {agent_id}')
+        fig.savefig(os.path.join(epoch_path, 'hm_events_left.png'))
+        plt.close()
+
+        # log heatmap_wall_collision
+        fig = plt.figure()
+        sns.heatmap(
+            self.env.heatmap_wall_collision, vmin=0, cmap='viridis', square=True,
+            xticklabels=list(str(x) for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) for y in range(-size_y, size_y))
+        )
         fig.savefig(os.path.join(epoch_path, 'hm_wall_collision.png'))
         plt.close()
 
+        # log heatmap_agents_collision
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_agents_collision, vmin=0, cmap='Blues',
+            self.env.heatmap_agents_collision, vmin=0, cmap='viridis', square=True,
             xticklabels=list(str(x) for x in range(-size_x, size_x)),
             yticklabels=list(str(y) for y in range(-size_y, size_y))
         )
-        plt.title(f'Agent {agent_id}')
         fig.savefig(os.path.join(epoch_path, 'hm_agents_collision.png'))
         plt.close()
 

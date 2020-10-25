@@ -31,6 +31,7 @@ class Exp4_Env(Env):
         self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_complete = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_events_left = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_wall_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
 
@@ -66,7 +67,6 @@ class Exp4_Env(Env):
                 num_generated += 1
                 self.events_generated += 1
 
-
     def step(self, action_n):
         obs_n, reward_n, done_n = list(), list(), list()
         for agent_id, agent in enumerate(self.agents):
@@ -77,6 +77,8 @@ class Exp4_Env(Env):
             obs_n.append(self.__observation(agent))
             reward_n.append(self.__reward(agent_id, agent))
             done_n.append(self.__done(agent))
+
+        self.heatmap_events_left += self.world.map.matrix[..., 2]
 
         return obs_n, reward_n, done_n
 

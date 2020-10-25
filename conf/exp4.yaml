@@ -12,7 +12,7 @@ hidden2: 64
 hidden3: 100
 gamma: 0.9
 
-phase: 'training'
+phase: 'validate'
      # 'training'
      # 'validate'
 
