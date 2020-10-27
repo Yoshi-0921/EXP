@@ -53,11 +53,10 @@ class Exp4:
         self.episode_count = 0
         self.validation_count = 0
         self.epsilon = config.epsilon_initial
-        self.heatmap_agents_path = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
-        # 3 (blue)はagentの軌跡
+        self.writer = SummaryWriter('exp4')
 
-        self.states = self.env.reset()
+        self.reset()
         torch.backends.cudnn.benchmark = True
         # describe network
         print("""
@@ -78,7 +77,6 @@ DQN Network Summary:""")
         self.states = self.env.reset()
         self.episode_reward = 0
         self.episode_step = 0
-        self.heatmap_agents_path = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
 
     def loss_and_update(self, batch):
@@ -96,7 +94,6 @@ DQN Network Summary:""")
         return loss
 
     def fit(self):
-        self.writer = SummaryWriter('exp4')
         # set dataloader
         dataset = RLDataset(self.buffer, self.cfg.batch_size)
         dataloader = DataLoader(dataset=dataset, batch_size=self.cfg.batch_size, pin_memory=True)
@@ -143,14 +140,8 @@ DQN Network Summary:""")
                 for agent in self.agents:
                     hard_update(agent.dqn_target, agent.dqn)
 
-                self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
-                self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
-                self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
-                self.writer.add_scalar('env/events_left', torch.tensor(self.env.events_generated-self.env.events_completed), self.episode_count)
-                self.writer.add_scalar('env/events_completed', torch.tensor(self.env.events_completed), self.episode_count)
-                self.writer.add_scalar('env/agents_collided', torch.tensor(self.env.agents_collided), self.episode_count)
-                self.writer.add_scalar('env/walls_collided', torch.tensor(self.env.walls_collided), self.episode_count)
-                self.log_heatmaps()
+                self.log_scalars()
+                self.log_heatmap()
                 self.reset()
 
                 # updates pbar
@@ -176,13 +167,23 @@ DQN Network Summary:""")
         with tqdm(total=self.cfg.validate_epochs) as pbar:
             for epoch in range(self.cfg.validate_epochs):
                 for step in range(self.cfg.max_episode_length):
+                    self.global_step += 1
+                    self.episode_step += 1
+
                     actions, rewards, dones = self.play_step()
-                self.log_validate(epoch)
+                    self.episode_reward += np.sum(rewards)
+
+                self.log_scalars()
+                self.log_heatmap()
+                self.log_validate()
+                self.episode_count += 1
                 self.reset()
+
                 # updates pbar
                 pbar.set_description('Validation')
                 pbar.update(1)
 
+        self.writer.close()
         pbar.close()
 
     @torch.no_grad()
@@ -198,8 +199,6 @@ DQN Network Summary:""")
 
             # heatmap update
             pos_x, pos_y = self.env.world.map.coord2ind(self.env.agents[agent_id].state.p_pos)
-            self.heatmap_agents_path[agent_id, pos_x, pos_y] += 1
-
 
         new_states, rewards, dones = self.env.step(actions)
 
@@ -211,14 +210,23 @@ DQN Network Summary:""")
 
         return actions, rewards, dones
 
-    def log_heatmaps(self):
+    def log_scalars(self):
+        self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
+        self.writer.add_scalar('episode/episode_step', torch.tensor(self.episode_step), self.episode_count)
+        self.writer.add_scalar('episode/global_step', torch.tensor(self.global_step), self.episode_count)
+        self.writer.add_scalar('env/events_left', torch.tensor(self.env.events_generated-self.env.events_completed), self.episode_count)
+        self.writer.add_scalar('env/events_completed', torch.tensor(self.env.events_completed), self.episode_count)
+        self.writer.add_scalar('env/agents_collided', torch.tensor(self.env.agents_collided), self.episode_count)
+        self.writer.add_scalar('env/walls_collided', torch.tensor(self.env.walls_collided), self.episode_count)
+
+    def log_heatmap(self):
         heatmap = torch.zeros(self.env.num_agents, 3, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
 
         for i in range(self.env.num_agents):
             # pathの情報を追加
-            self.heatmap_agents_path[i, ...] = 0.5 * self.heatmap_agents_path[i, ...] / torch.max(self.heatmap_agents_path[i, ...])
-            self.heatmap_agents_path[i, ...] = torch.where(self.heatmap_agents_path[i, ...]>0, self.heatmap_agents_path[i, ...]+0.5, self.heatmap_agents_path[i, ...])
-            heatmap[i, 2, ...] += self.heatmap_agents_path[i, ...]
+            heatmap_agents = 0.5 * self.env.heatmap_agents[i, ...] / torch.max(self.env.heatmap_agents[i, ...])
+            heatmap_agents = torch.where(heatmap_agents>0, heatmap_agents+0.5, heatmap_agents)
+            heatmap[i, 2, ...] += heatmap_agents
 
         # 壁の情報を追加
         heatmap[:, :, ...] += torch.tensor(self.env.world.map.matrix[..., 0])
@@ -233,12 +241,12 @@ DQN Network Summary:""")
         heatmap = make_grid(heatmap, nrow=2)
         self.writer.add_image('episode/heatmap', heatmap, self.episode_count, dataformats='CHW')
 
-    def log_validate(self, epoch):
+    def log_validate(self):
         # make directory
         path = 'validate'
         if not os.path.isdir(path):
             os.mkdir(path)
-        epoch_path = os.path.join(path, 'epoch_'+str(epoch))
+        epoch_path = os.path.join(path, 'epoch_'+str(self.episode_count))
         hm_agents_path = os.path.join(epoch_path, 'hm_agents')
         hm_complete_path = os.path.join(epoch_path, 'hm_complete')
         os.mkdir(epoch_path)
