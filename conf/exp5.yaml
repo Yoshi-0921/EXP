@@ -1,0 +1,37 @@
+defaults:
+  - opt: rmsprop
+  - job_logging: disabled
+
+# configure world
+num_agents: 4
+num_landmarks: 40
+
+# configure agent
+visible_range: 7
+hidden1: 32
+hidden2: 64
+hidden3: 100
+gamma: 0.9
+
+phase: 'training'
+     # 'training'
+     # 'validate'
+load_weight: True
+
+# configure training
+max_epochs: 20000
+max_episode_length: 200
+batch_size: 32
+populate_steps: 1000
+capacity: 100000
+epsilon_decay: 0.9998
+epsilon_initial: 0.05
+epsilon_end: 0.05
+
+# configre validate
+validate_epochs: 10000
+model_path: '/home/motokawa/projects/EXP/saved_models/exp4_37x24'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_1agent.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_4agents.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_37x24'

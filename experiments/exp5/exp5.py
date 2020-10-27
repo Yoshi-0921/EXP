@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from experiments.exp4.exp4_agent import DQNAgent
-from experiments.exp4.exp4_env import Exp4_Env
+from experiments.exp5.exp5_agent import DQNAgent
+from experiments.exp5.exp5_env import Exp5_Env
 from omegaconf import DictConfig
 from torch import nn, optim
 from torch.nn import functional as F
@@ -31,12 +31,12 @@ from utils.dataset import RLDataset
 from utils.tools import hard_update
 
 
-class Exp4:
+class Exp5:
     def __init__(self, config):
-        super(Exp4, self).__init__()
+        super(Exp5, self).__init__()
         self.cfg = config
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.env = Exp4_Env(config)
+        self.env = Exp5_Env(config)
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
@@ -319,12 +319,12 @@ DQN Network Summary:""")
         plt.close()
 
 
-@hydra.main(config_path='../../conf/exp4.yaml')
+@hydra.main(config_path='../../conf/exp5.yaml')
 def main(config: DictConfig):
     torch.manual_seed(921)
     np.random.seed(921)
 
-    exp = Exp4(config=config)
+    exp = Exp5(config=config)
     if config.phase == 'training':
         exp.fit()
     elif config.phase == 'validate':
