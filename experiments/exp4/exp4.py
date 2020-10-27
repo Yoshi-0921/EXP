@@ -43,6 +43,11 @@ class Exp4:
         self.buffer = ReplayBuffer(config.capacity, state_conv=True)
         self.agents = [DQNAgent(obs_size[agent_id], act_size[agent_id], config) for agent_id in range(self.env.num_agents)]
 
+        # load state_dict
+        if config.phase == 'validate':
+            for agent_id, agent in enumerate(self.agents):
+                agent.dqn.load_state_dict(torch.load(os.path.join(config.model_path, f'agent_{agent_id}.pth')))
+
         self.total_reward = 0
         self.global_step = 0
         self.episode_count = 0
@@ -158,8 +163,9 @@ DQN Network Summary:""")
         self.writer.close()
         pbar.close()
 
-        model_path = 'model.pth'
-        torch.save(self.agents[0].dqn.to('cpu').state_dict(), model_path)
+        for agent_id, agent in enumerate(self.agents):
+            model_path = f'agent_{agent_id}.pth'
+            torch.save(agent.dqn.to('cpu').state_dict(), model_path)
 
     def validate(self):
         # put models on GPU and change to eval mode
@@ -240,9 +246,9 @@ DQN Network Summary:""")
             # log heatmap_agents
             fig = plt.figure()
             sns.heatmap(
-                self.env.heatmap_agents[agent_id], vmin=0, cmap='Blues', square=True,
-                xticklabels=list(str(x) for x in range(-size_x, size_x)),
-                yticklabels=list(str(y) for y in range(-size_y, size_y))
+                torch.t(self.env.heatmap_agents[agent_id]), vmin=0, cmap='Blues',
+                xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
+                yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
             )
             plt.title(f'Agent {agent_id}')
             fig.savefig(os.path.join(hm_agents_path, f'agent_{agent_id}.png'))
@@ -251,9 +257,9 @@ DQN Network Summary:""")
             # log heatmap_complete
             fig = plt.figure()
             sns.heatmap(
-                self.env.heatmap_complete[agent_id], vmin=0, cmap='Blues', square=True,
-                xticklabels=list(str(x) for x in range(-size_x, size_x)),
-                yticklabels=list(str(y) for y in range(-size_y, size_y))
+                torch.t(self.env.heatmap_complete[agent_id]), vmin=0, cmap='Blues',
+                xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
+                yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
             )
             plt.title(f'Agent {agent_id}')
             fig.savefig(os.path.join(hm_complete_path, f'agent_{agent_id}.png'))
@@ -262,9 +268,9 @@ DQN Network Summary:""")
         # log heatmap_events
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_events, vmin=0, cmap='Blues', square=True,
-            xticklabels=list(str(x) for x in range(-size_x, size_x)),
-            yticklabels=list(str(y) for y in range(-size_y, size_y))
+            torch.t(self.env.heatmap_events), vmin=0, cmap='Blues',
+            xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
         )
         fig.savefig(os.path.join(epoch_path, 'hm_events.png'))
         plt.close()
@@ -272,9 +278,9 @@ DQN Network Summary:""")
         # log heatmap_events_left
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_events_left, vmin=0, cmap='viridis', square=True,
-            xticklabels=list(str(x) for x in range(-size_x, size_x)),
-            yticklabels=list(str(y) for y in range(-size_y, size_y))
+            torch.t(self.env.heatmap_events_left), vmin=0, cmap='Blues',
+            xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
         )
         fig.savefig(os.path.join(epoch_path, 'hm_events_left.png'))
         plt.close()
@@ -282,9 +288,9 @@ DQN Network Summary:""")
         # log heatmap_wall_collision
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_wall_collision, vmin=0, cmap='viridis', square=True,
-            xticklabels=list(str(x) for x in range(-size_x, size_x)),
-            yticklabels=list(str(y) for y in range(-size_y, size_y))
+            torch.t(self.env.heatmap_wall_collision), vmin=0, cmap='Blues',
+            xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
         )
         fig.savefig(os.path.join(epoch_path, 'hm_wall_collision.png'))
         plt.close()
@@ -292,9 +298,9 @@ DQN Network Summary:""")
         # log heatmap_agents_collision
         fig = plt.figure()
         sns.heatmap(
-            self.env.heatmap_agents_collision, vmin=0, cmap='viridis', square=True,
-            xticklabels=list(str(x) for x in range(-size_x, size_x)),
-            yticklabels=list(str(y) for y in range(-size_y, size_y))
+            torch.t(self.env.heatmap_agents_collision), vmin=0, cmap='Blues',
+            xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
+            yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
         )
         fig.savefig(os.path.join(epoch_path, 'hm_agents_collision.png'))
         plt.close()

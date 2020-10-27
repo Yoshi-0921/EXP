@@ -40,10 +40,10 @@ class Exp4_Env(Env):
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
         for i in range(self.num_agents):
-            if i==0: self.world.agents[0].state.p_pos = np.array([0, 0]) # (12, 12)
-            elif i==1: self.world.agents[1].state.p_pos = np.array([-1, 0]) # (11, 12)
-            elif i==2: self.world.agents[2].state.p_pos = np.array([-1, -1]) # (11, 11)
-            elif i==3: self.world.agents[3].state.p_pos = np.array([0, -1]) # (12, 11)
+            if i==0: self.world.agents[0].state.p_pos = np.array([-1, 1])
+            elif i==1: self.world.agents[1].state.p_pos = np.array([1, 1])
+            elif i==2: self.world.agents[2].state.p_pos = np.array([-1, 0])
+            elif i==3: self.world.agents[3].state.p_pos = np.array([1, 0])
         for agent in self.world.agents:
             agent.collide_agents = False
             agent.collide_walls = False
@@ -61,7 +61,7 @@ class Exp4_Env(Env):
         num_generated = 0
         while num_generated < num_events:
             x, y = 1 + int(random() * (self.world.map.SIZE_X-1)), 1 + int(random() * (self.world.map.SIZE_Y-1))
-            if self.world.map.matrix[x, y, 0] == 0 and self.world.map.matrix[x, y, 2] == 0:
+            if self.world.map.matrix[x, y, 0] == 0 and self.world.map.matrix[x, y, 2] == 0 and self.world.map.aisle[x, y] == 0:
                 self.world.landmarks.append(Landmark())
                 self.world.landmarks[-1].state.p_pos = self.world.map.ind2coord((x, y))
                 self.world.map.matrix[x, y, 2] = 1
@@ -266,16 +266,17 @@ class Exp4_Env(Env):
     ==================================================
     """)
 
-
 class Exp4_Map(Map):
     def __init__(self, config):
         super(Exp4_Map, self).__init__()
-        self.SIZE_X = 24
+        self.SIZE_X = 37
         self.SIZE_Y = 24
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
         self.matrix_probs = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.float)
+        self.aisle = np.zeros((self.SIZE_X, self.SIZE_Y), dtype=np.float)
         self.locate_walls()
+        self.set_aisle()
         self.set_probs()
 
     def reset(self):
@@ -304,12 +305,30 @@ class Exp4_Map(Map):
         return res
 
     def locate_walls(self):
-        self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
+        self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
+        self.matrix[:, np.array([10, 13]), 0] = 1
+        self.matrix[18, :, 0] = 1
+        self.matrix[18, np.array([11, 12]), 0] = 0
+        self.matrix[np.array([9, 27]), 10, 0] = 0
+        self.matrix[np.array([9, 27]), 13, 0] = 0
+
+    def set_aisle(self):
+        self.aisle[:, np.array([11, 12])] = 1
+
+    """
+    def locate_walls(self):
+        self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
+        self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 10, 0] = 1
         self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 13, 0] = 1
         self.matrix[10, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
         self.matrix[13, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
+
+    def set_aisle(self):
+        self.aisle[np.array([11, 12]), :] = 1
+        self.aisle[:, np.array([11, 12])] = 1
+    """
 
     def locate_agents(self):
         for agent in self.agents:

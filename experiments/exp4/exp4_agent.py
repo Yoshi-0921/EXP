@@ -35,10 +35,6 @@ class DQNAgent(Agent):
                                         alpha=config.opt.alpha,
                                         eps=config.opt.eps)
 
-        # load state_dict
-        if config.phase == 'validate':
-            self.dqn.load_state_dict(torch.load(config.model_path))
-
         # synch weight
         hard_update(self.dqn_target, self.dqn)
 
