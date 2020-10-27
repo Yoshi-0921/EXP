@@ -53,9 +53,8 @@ class Exp4:
         self.episode_count = 0
         self.validation_count = 0
         self.epsilon = config.epsilon_initial
-        self.heatmap_agents = torch.zeros(self.env.num_agents, 3, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
-        self.heatmap_agents[:, 0, ...] = torch.tensor(self.env.world.map.matrix[..., 0])# + (torch.tensor(self.env.world.map.matrix_probs[...] * 3))
-        self.heatmap_agents[:, 1, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
+        self.heatmap_agents_path = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+
         # 3 (blue)はagentの軌跡
 
         self.states = self.env.reset()
@@ -79,9 +78,8 @@ DQN Network Summary:""")
         self.states = self.env.reset()
         self.episode_reward = 0
         self.episode_step = 0
-        self.heatmap_agents[:, 0, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
-        self.heatmap_agents[:, 1, ...] = torch.tensor(self.env.world.map.matrix[..., 0])
-        self.heatmap_agents[:, 2, ...] = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+        self.heatmap_agents_path = torch.zeros(self.env.num_agents, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+
 
     def loss_and_update(self, batch):
         loss = list()
@@ -200,7 +198,8 @@ DQN Network Summary:""")
 
             # heatmap update
             pos_x, pos_y = self.env.world.map.coord2ind(self.env.agents[agent_id].state.p_pos)
-            self.heatmap_agents[agent_id, 2, pos_x, pos_y] += 1
+            self.heatmap_agents_path[agent_id, pos_x, pos_y] += 1
+
 
         new_states, rewards, dones = self.env.step(actions)
 
@@ -213,20 +212,26 @@ DQN Network Summary:""")
         return actions, rewards, dones
 
     def log_heatmaps(self):
+        heatmap = torch.zeros(self.env.num_agents, 3, self.env.world.map.SIZE_X, self.env.world.map.SIZE_Y)
+
         for i in range(self.env.num_agents):
-            self.heatmap_agents[i, 2, ...] = 0.5 * self.heatmap_agents[i, 2, ...] / torch.max(self.heatmap_agents[i, 2, ...])
-            self.heatmap_agents[i, 2, ...] = torch.where(self.heatmap_agents[i, 2, ...]>0, self.heatmap_agents[i, 2, ...]+0.5, self.heatmap_agents[i, 2, ...])
+            # pathの情報を追加
+            self.heatmap_agents_path[i, ...] = 0.5 * self.heatmap_agents_path[i, ...] / torch.max(self.heatmap_agents_path[i, ...])
+            self.heatmap_agents_path[i, ...] = torch.where(self.heatmap_agents_path[i, ...]>0, self.heatmap_agents_path[i, ...]+0.5, self.heatmap_agents_path[i, ...])
+            heatmap[i, 2, ...] += self.heatmap_agents_path[i, ...]
 
         # 壁の情報を追加
-        self.heatmap_agents[:, 2, ...] += torch.tensor(self.env.world.map.matrix[..., 0])
+        heatmap[:, :, ...] += torch.tensor(self.env.world.map.matrix[..., 0])
+
         # eventsの情報を追加
         heatmap_events = 0.8 * self.env.heatmap_events / torch.max(self.env.heatmap_events)
         heatmap_events = torch.where(heatmap_events>0, heatmap_events+0.2, heatmap_events)
-        self.heatmap_agents[:, torch.tensor([0, 1]), ...] += heatmap_events
-        heatmap_agents = F.interpolate(self.heatmap_agents, size=(self.env.world.map.SIZE_X*10, self.env.world.map.SIZE_Y*10))
-        heatmap_agents = torch.transpose(heatmap_agents, 2, 3)
-        heatmap_agents = make_grid(heatmap_agents, nrow=2)
-        self.writer.add_image('episode/heatmap_agents', heatmap_agents, self.episode_count, dataformats='CHW')
+        heatmap[:, torch.tensor([0, 1]), ...] += heatmap_events
+
+        heatmap = F.interpolate(heatmap, size=(self.env.world.map.SIZE_X*10, self.env.world.map.SIZE_Y*10))
+        heatmap = torch.transpose(heatmap, 2, 3)
+        heatmap = make_grid(heatmap, nrow=2)
+        self.writer.add_image('episode/heatmap', heatmap, self.episode_count, dataformats='CHW')
 
     def log_validate(self, epoch):
         # make directory

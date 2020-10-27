@@ -4,7 +4,7 @@ defaults:
 
 # configure world
 num_agents: 4
-num_landmarks: 20
+num_landmarks: 40
 
 # configure agent
 visible_range: 7
@@ -28,7 +28,9 @@ epsilon_initial: 1.0
 epsilon_end: 0.05
 
 # configre validate
-validate_epochs: 3
-model_path: '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'
+validate_epochs: 1
+model_path: '/home/motokawa/projects/EXP/saved_models/exp4_37x24'
           # '/home/motokawa/projects/EXP/saved_models/exp4_1agent.pth'
           # '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_4agents.pth'
+          # '/home/motokawa/projects/EXP/saved_models/exp4_37x24'
