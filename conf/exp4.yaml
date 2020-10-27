@@ -16,6 +16,7 @@ gamma: 0.9
 phase: 'training'
      # 'training'
      # 'validate'
+load_weight: True
 
 # configure training
 max_epochs: 20000
@@ -24,11 +25,11 @@ batch_size: 32
 populate_steps: 1000
 capacity: 100000
 epsilon_decay: 0.9998
-epsilon_initial: 1.0
+epsilon_initial: 0.05
 epsilon_end: 0.05
 
 # configre validate
-validate_epochs: 1
+validate_epochs: 10000
 model_path: '/home/motokawa/projects/EXP/saved_models/exp4_37x24'
           # '/home/motokawa/projects/EXP/saved_models/exp4_1agent.pth'
           # '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'

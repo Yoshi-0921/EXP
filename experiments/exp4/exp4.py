@@ -44,7 +44,7 @@ class Exp4:
         self.agents = [DQNAgent(obs_size[agent_id], act_size[agent_id], config) for agent_id in range(self.env.num_agents)]
 
         # load state_dict
-        if config.phase == 'validate':
+        if config.load_weight:
             for agent_id, agent in enumerate(self.agents):
                 agent.dqn.load_state_dict(torch.load(os.path.join(config.model_path, f'agent_{agent_id}.pth')))
 
@@ -175,7 +175,7 @@ DQN Network Summary:""")
 
                 self.log_scalars()
                 self.log_heatmap()
-                self.log_validate()
+                #self.log_validate()
                 self.episode_count += 1
                 self.reset()
 
