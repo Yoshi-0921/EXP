@@ -212,8 +212,8 @@ def main(config: DictConfig):
     torch.manual_seed(921)
     np.random.seed(921)
 
-    model = Exp2(config=config)
-    model.fit()
+    exp = Exp2(config=config)
+    exp.fit()
 
 if __name__ == '__main__':
     main()
