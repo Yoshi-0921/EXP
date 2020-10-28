@@ -147,9 +147,9 @@ class Exp5_Env(Env):
                 obs[0, offset+pos_x, offset+pos_y] = 1
                 offset_x, offset_y = diff_x + offset, offset - diff_y
                 # agent aが観測した情報の入力
-                obs = self.fill_obs(obs, a, offset_x, offset_y, 'area')
-                obs = self.fill_obs(obs, a, offset_x, offset_y, 'agent')
-                obs = self.fill_obs(obs, a, offset_x, offset_y, 'event')
+                #obs = self.fill_obs(obs, a, offset_x, offset_y, 'area')
+                #obs = self.fill_obs(obs, a, offset_x, offset_y, 'agent')
+                #obs = self.fill_obs(obs, a, offset_x, offset_y, 'event')
 
         return obs
 
@@ -273,7 +273,7 @@ class Exp5_Env(Env):
 class Exp5_Map(Map):
     def __init__(self, config):
         super(Exp5_Map, self).__init__()
-        self.SIZE_X = 37
+        self.SIZE_X = 24 # 37
         self.SIZE_Y = 24
         # 0:walls, 1:agents, 2:landmarks
         self.matrix = np.zeros((self.SIZE_X, self.SIZE_Y, 3), dtype=np.int8)
@@ -308,7 +308,7 @@ class Exp5_Map(Map):
 
         return res
 
-    def locate_walls(self):
+    """def locate_walls(self):
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[:, np.array([10, 13]), 0] = 1
@@ -318,9 +318,8 @@ class Exp5_Map(Map):
         self.matrix[np.array([9, 27]), 13, 0] = 0
 
     def set_aisle(self):
-        self.aisle[:, np.array([11, 12])] = 1
+        self.aisle[:, np.array([11, 12])] = 1"""
 
-    """
     def locate_walls(self):
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
@@ -330,9 +329,8 @@ class Exp5_Map(Map):
         self.matrix[13, np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 0] = 1
 
     def set_aisle(self):
-        self.aisle[np.array([11, 12]), :] = 1
-        self.aisle[:, np.array([11, 12])] = 1
-    """
+        self.aisle[np.arange(10, 14), :] = 1
+        self.aisle[:, np.arange(10, 14)] = 1
 
     def locate_agents(self):
         for agent in self.agents:

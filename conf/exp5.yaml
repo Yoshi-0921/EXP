@@ -4,7 +4,7 @@ defaults:
 
 # configure world
 num_agents: 4
-num_landmarks: 40
+num_landmarks: 20
 
 # configure agent
 visible_range: 7
@@ -16,7 +16,7 @@ gamma: 0.9
 phase: 'training'
      # 'training'
      # 'validate'
-load_weight: True
+load_weight: False
 
 # configure training
 max_epochs: 20000
@@ -25,7 +25,7 @@ batch_size: 32
 populate_steps: 1000
 capacity: 100000
 epsilon_decay: 0.9998
-epsilon_initial: 0.05
+epsilon_initial: 1.0
 epsilon_end: 0.05
 
 # configre validate
