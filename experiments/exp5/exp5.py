@@ -54,7 +54,7 @@ class Exp5:
         self.validation_count = 0
         self.epsilon = config.epsilon_initial
 
-        self.writer = SummaryWriter('exp4')
+        self.writer = SummaryWriter('exp5')
 
         self.reset()
         torch.backends.cudnn.benchmark = True

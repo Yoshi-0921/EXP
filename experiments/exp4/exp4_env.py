@@ -128,68 +128,45 @@ class Exp4_Env(Env):
 
         # 壁と見えないセルの入力
         obs[2, :, :] -= 1
-        for x in range(self.visible_range):
-            # 自分より上側
-            for y in range(self.visible_range//2, -1, -1):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=self.visible_range, size_y=self.visible_range)
-                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
-                # 場外なら-1
-                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                    obs[2, x, y] = -1
-                    continue
-                # 壁なら-1
-                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                    obs[2, x, y] = -1
-                    break
-                # 何もないなら0
-                else:
-                    obs[2, x, y] = 0
-            # 自分より下側
-            for y in range(self.visible_range//2, self.visible_range):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=7, size_y=7)
-                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
-                # 場外なら-1
-                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                    obs[2, x, y] = -1
-                    continue
-                # 壁なら-1
-                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                    obs[2, x, y] = -1
-                    break
-                # 何もないなら0
-                else:
-                    obs[2, x, y] = 0
-        for y in range(self.visible_range):
-            # 自分より左側
-            for x in range(self.visible_range//2, -1, -1):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=self.visible_range, size_y=self.visible_range)
-                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
-                # 場外なら-1
-                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                    obs[2, x, y] = -1
-                    continue
-                # 壁なら-1
-                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                    obs[2, x, y] = -1
-                    break
-                # 何もないなら0
-                else:
-                    obs[2, x, y] = 0
-            # 自分より右側
-            for x in range(self.visible_range//2, self.visible_range):
-                pos_x, pos_y = self.world.map.ind2coord((x, y), size_x=self.visible_range, size_y=self.visible_range)
-                pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
-                # 場外なら-1
-                if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                    obs[2, x, y] = -1
-                    continue
-                # 壁なら-1
-                if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                    obs[2, x, y] = -1
-                    break
-                # 何もないなら0
-                else:
-                    obs[2, x, y] = 0
+        obs[2, self.visible_range//2, self.visible_range//2] = 0
+
+        for x in range(-1, 2):
+            for y in [-1, 1]:
+                for opr in range(-1, 2):
+                    for j in range(3):
+                        pos_x, pos_y = x + j * opr, y + j * y
+                        local_pos_x, local_pos_y = self.world.map.coord2ind((pos_x, pos_y), self.visible_range, self.visible_range)
+                        pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                        # 場外なら-1
+                        if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                            obs[2, local_pos_x, local_pos_y] = -1
+                            continue
+                        # 壁なら-1
+                        if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                            obs[2, local_pos_x, local_pos_y] = -1
+                            break
+                        # 何もないなら0
+                        else:
+                            obs[2, local_pos_x, local_pos_y] = 0
+
+        for y in range(-1, 2):
+            for x in [-1, 1]:
+                for opr in range(-1, 2):
+                    for j in range(3):
+                        pos_x, pos_y = x + j * x, y + j * opr
+                        local_pos_x, local_pos_y = self.world.map.coord2ind((pos_x, pos_y), self.visible_range, self.visible_range)
+                        pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
+                        # 場外なら-1
+                        if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
+                            obs[2, local_pos_x, local_pos_y] = -1
+                            continue
+                        # 壁なら-1
+                        if self.world.map.matrix[pos_x, pos_y, 0] == 1:
+                            obs[2, local_pos_x, local_pos_y] = -1
+                            break
+                        # 何もないなら0
+                        else:
+                            obs[2, local_pos_x, local_pos_y] = 0
 
         # エージェントの入力
         for a in self.world.agents:
