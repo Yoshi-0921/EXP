@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
-from experiments.exp5.exp5_agent import DQNAgent
-from experiments.exp5.exp5_env import Exp5_Env
+from experiments.exp6.exp6_agent import DQNAgent
+from experiments.exp6.exp6_env import Exp6_Env
 from omegaconf import DictConfig
 from torch import nn, optim
 from torch.nn import functional as F
@@ -31,12 +31,12 @@ from utils.dataset import RLDataset
 from utils.tools import hard_update
 
 
-class Exp5:
+class Exp6:
     def __init__(self, config):
-        super(Exp5, self).__init__()
+        super(Exp6, self).__init__()
         self.cfg = config
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.env = Exp5_Env(config)
+        self.env = Exp6_Env(config)
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
@@ -54,7 +54,7 @@ class Exp5:
         self.validation_count = 0
         self.epsilon = config.epsilon_initial
 
-        self.writer = SummaryWriter('exp5')
+        self.writer = SummaryWriter('exp6')
         print(self.env.world.map.matrix[...,0].T)
 
         self.reset()
@@ -195,7 +195,7 @@ DQN Network Summary:""")
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
 
-            action = agent.get_action(states[agent_id], epsilon)
+            action, _, _ = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
 
             # heatmap update
@@ -320,12 +320,12 @@ DQN Network Summary:""")
         plt.close()
 
 
-@hydra.main(config_path='../../conf/exp5.yaml')
+@hydra.main(config_path='../../conf/exp6.yaml')
 def main(config: DictConfig):
     torch.manual_seed(921)
     np.random.seed(921)
 
-    exp = Exp5(config=config)
+    exp = Exp6(config=config)
     if config.phase == 'training':
         exp.fit()
     elif config.phase == 'validate':

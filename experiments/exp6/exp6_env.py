@@ -8,9 +8,9 @@ import torch
 from utils.core import Agent, Env, Landmark, Map, World
 
 
-class Exp5_Env(Env):
+class Exp6_Env(Env):
     def __init__(self, config):
-        super(Exp5_Env, self).__init__()
+        super(Exp6_Env, self).__init__()
         self.cfg = config
         self.world = self.make_world(config)
         self.agents = self.world.agents
@@ -248,13 +248,13 @@ class Exp5_Env(Env):
         for i, landmark in enumerate(world.landmarks):
             landmark.name = f'landmark {i}'
             landmark.collide = False
-        world.map = Exp5_Map(config)
+        world.map = Exp6_Map(config)
 
         return world
 
     def describe_env(self):
         print("""
-    Experiment 5 Environment generated!
+    Experiment 6 Environment generated!
 
     ======================Action======================
     | 0: Right | 1: Up | 2: Left | 3: Down | ------- |
@@ -270,9 +270,9 @@ class Exp5_Env(Env):
     ==================================================
     """)
 
-class Exp5_Map(Map):
+class Exp6_Map(Map):
     def __init__(self, config):
-        super(Exp5_Map, self).__init__()
+        super(Exp6_Map, self).__init__()
         self.SIZE_X = 24 # 37
         self.SIZE_Y = 24
         # 0:walls, 1:agents, 2:landmarks
@@ -320,7 +320,7 @@ class Exp5_Map(Map):
     def set_aisle(self):
         self.aisle[:, np.array([11, 12])] = 1"""
 
-    """def locate_walls(self):
+    def locate_walls(self):
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
         self.matrix[np.array([1,2,3,7,8,9,10,13,14,15,16,20,21,22]), 10, 0] = 1
@@ -330,9 +330,9 @@ class Exp5_Map(Map):
 
     def set_aisle(self):
         self.aisle[np.arange(10, 14), :] = 1
-        self.aisle[:, np.arange(10, 14)] = 1"""
+        self.aisle[:, np.arange(10, 14)] = 1
 
-    def locate_walls(self):
+    """def locate_walls(self):
         self.matrix[np.array([0, self.SIZE_X-1]), :, 0] = 1
         self.matrix[:, np.array([0, self.SIZE_Y-1]), 0] = 1
 
@@ -354,7 +354,7 @@ class Exp5_Map(Map):
 
     def set_aisle(self):
         self.aisle[np.array([11, 12]), :] = 1
-        self.aisle[:, np.array([11, 12])] = 1
+        self.aisle[:, np.array([11, 12])] = 1"""
 
     def locate_agents(self):
         for agent in self.agents:
