@@ -44,6 +44,7 @@ class DQNAgent(Agent):
         self.dqn.eval()
         if np.random.random() < epsilon:
             action = self.random_action()
+            am1, am2 = torch.zeros(state.shape[0], 36, 36), torch.zeros(state.shape[0], 4, 4)
         else:
             with torch.no_grad():
                 state = state.unsqueeze(0).to(self.device)
@@ -60,7 +61,8 @@ class DQNAgent(Agent):
         out, _, _ = self.dqn(state)
         state_action_values = out.gather(1, action.unsqueeze(-1)).squeeze(-1)
         with torch.no_grad():
-            next_state_values = self.dqn_target(next_state).max(1)[0]
+            out, _, _ = self.dqn_target(next_state)
+            next_state_values = out.max(1)[0]
             next_state_values[done] = 0.0
             next_state_values = next_state_values.detach()
         expected_state_action_values = reward + self.gamma * (1 - done) * next_state_values

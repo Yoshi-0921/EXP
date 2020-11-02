@@ -64,7 +64,7 @@ class Exp6:
 ================================================================
 DQN Network Summary:""")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        summary(self.agents[0].dqn, (3, obs_size[0], obs_size[0]), batch_size=config.batch_size, device=device)
+        #summary(self.agents[0].dqn, (3, obs_size[0], obs_size[0]), batch_size=config.batch_size, device=device)
 
     def populate(self, steps: int):
         with tqdm(total=steps) as pbar:
@@ -78,7 +78,6 @@ DQN Network Summary:""")
         self.states = self.env.reset()
         self.episode_reward = 0
         self.episode_step = 0
-
 
     def loss_and_update(self, batch):
         loss = list()
@@ -195,7 +194,7 @@ DQN Network Summary:""")
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
 
-            action, _, _ = agent.get_action(states[agent_id], epsilon)
+            action, am1, am2 = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
 
             # heatmap update

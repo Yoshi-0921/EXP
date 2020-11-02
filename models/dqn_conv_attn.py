@@ -19,7 +19,7 @@ class DQN_Conv(nn.Module):
         self.attn1 = Self_Attention(in_dimm=hidden1)
         self.conv2 = nn.Conv2d(in_channels=hidden1, out_channels=hidden2, kernel_size=2, stride=1)
         self.attn2 = Self_Attention(in_dimm=hidden2)
-        self.fc1 = nn.Linear(hidden2*(obs_size**2), hidden3)
+        self.fc1 = nn.Linear(hidden2, hidden3)
         self.fc2 = nn.Linear(hidden3, n_actions)
 
     def forward(self, x):
