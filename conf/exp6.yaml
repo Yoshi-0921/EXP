@@ -16,7 +16,6 @@ gamma: 0.9
 phase: 'training'
      # 'training'
      # 'validate'
-load_weight: False
 
 # configure training
 max_epochs: 20000
@@ -29,9 +28,11 @@ epsilon_initial: 1.0
 epsilon_end: 0.05
 
 # configre validate
-validate_epochs: 10000
-model_path: '/home/motokawa/projects/EXP/saved_models/exp4_37x24'
-          # '/home/motokawa/projects/EXP/saved_models/exp4_1agent.pth'
-          # '/home/motokawa/projects/EXP/saved_models/exp4_2agents.pth'
-          # '/home/motokawa/projects/EXP/saved_models/exp4_4agents.pth'
-          # '/home/motokawa/projects/EXP/saved_models/exp4_37x24'
+validate_epochs: 1
+load_weight: False
+model_path: '/home/motokawa/projects/EXP/saved_models/exp6'
+          # '/home/motokawa/projects/EXP/outputs/2020-11-06/23-59-57'
+          # '/home/motokawa/projects/EXP/outputs/2020-11-03/13-08-42'
+          # '/home/motokawa/projects/EXP/outputs/2020-11-04/13-40-41'
+          # '/home/motokawa/projects/EXP/saved_models/exp6/same_size_attn'
+          # '/home/motokawa/projects/EXP/saved_models/exp6'

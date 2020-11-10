@@ -125,6 +125,7 @@ class Exp6_Env(Env):
         # 3 x input_range x input_rangeの入力が欲しい
         # 0:agents, 1:landmarks, 2:visible area
         obs = np.zeros((3, self.visible_range, self.visible_range), dtype=np.int8)
+        #obs[0, self.visible_range//2, self.visible_range//2] = 1
         offset = 0
 
         # 壁と見えないセルの入力
@@ -141,6 +142,9 @@ class Exp6_Env(Env):
                 continue
             pos_x, pos_y = self.world.map.coord2ind((a.state.p_pos[0]-agent.state.p_pos[0], a.state.p_pos[1]-agent.state.p_pos[1]),
                                                     size_x=self.visible_range, size_y=self.visible_range)
+            # 見える範囲なら追加
+            if obs[2, offset+pos_x, offset+pos_y] != -1:
+                obs[0, offset+pos_x, offset+pos_y] = 1
 
         return obs
 

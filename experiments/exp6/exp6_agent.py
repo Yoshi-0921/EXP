@@ -7,7 +7,8 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from models.dqn_conv_attn import DQN_Conv
+#from models.dqn_conv_attn import DQN_Conv
+from models.vit import DQN_Conv
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import hard_update
@@ -43,25 +44,27 @@ class DQNAgent(Agent):
     def get_action(self, state, epsilon):
         self.dqn.eval()
         if np.random.random() < epsilon:
+            state = state.unsqueeze(0)
             action = self.random_action()
-            am1, am2 = torch.zeros(state.shape[0], 36, 36), torch.zeros(state.shape[0], 4, 4)
+            attns = [torch.zeros(state.shape[0], 4, 50, 50), torch.zeros(state.shape[0], 4, 50, 50)]
         else:
             with torch.no_grad():
                 state = state.unsqueeze(0).to(self.device)
 
-                q_values, am1, am2 = self.dqn(state)
+                q_values, attns = self.dqn(state)
                 _, action = torch.max(q_values, dim=1)
                 action = int(action.item())
 
-        return action, am1, am2
+        attns = torch.stack(attns)
+        return action, attns
 
     def update(self, state, action, reward, done, next_state):
         self.dqn.eval()
         self.dqn_target.eval()
-        out, _, _ = self.dqn(state)
+        out, _ = self.dqn(state)
         state_action_values = out.gather(1, action.unsqueeze(-1)).squeeze(-1)
         with torch.no_grad():
-            out, _, _ = self.dqn_target(next_state)
+            out, _ = self.dqn_target(next_state)
             next_state_values = out.max(1)[0]
             next_state_values[done] = 0.0
             next_state_values = next_state_values.detach()

@@ -13,6 +13,7 @@ warnings.simplefilter('ignore')
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 import seaborn as sns
 import torch
 from experiments.exp6.exp6_agent import DQNAgent
@@ -53,6 +54,7 @@ class Exp6:
         self.episode_count = 0
         self.validation_count = 0
         self.epsilon = config.epsilon_initial
+        self.visible_range = config.visible_range
 
         self.writer = SummaryWriter('exp6')
         print(self.env.world.map.matrix[...,0].T)
@@ -63,7 +65,7 @@ class Exp6:
         print("""
 ================================================================
 DQN Network Summary:""")
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        #device = 'cuda' if torch.cuda.is_available() else 'cpu'
         #summary(self.agents[0].dqn, (3, obs_size[0], obs_size[0]), batch_size=config.batch_size, device=device)
 
     def populate(self, steps: int):
@@ -112,10 +114,13 @@ DQN Network Summary:""")
         # training loop
         with tqdm(total=self.cfg.max_epochs) as pbar:
             for epoch in range(self.cfg.max_epochs):
+                if epoch % (self.cfg.max_epochs//10) == 0:
+                    for agent_id, agent in enumerate(self.agents):
+                        model_path = f'epoch{epoch}_agent{agent_id}.pth'
+                        torch.save(agent.dqn.to('cpu').state_dict(), model_path)
+                        agent.dqn.to(self.device)
                 # training phase
                 for step in range(self.cfg.max_episode_length):
-                    self.global_step += 1
-                    self.episode_step += 1
                     total_loss_sum = 0.0
 
                     # train based on experiments
@@ -124,17 +129,28 @@ DQN Network Summary:""")
                         total_loss_sum += torch.sum(loss_list)
 
                     # execute in environment
-                    actions, rewards, dones = self.play_step(self.epsilon)
+                    _, rewards, attention_maps = self.play_step(self.epsilon)
                     self.episode_reward += np.sum(rewards)
+
+                    # log attention_maps of agent0
+                    attention_map = attention_maps[0].mean(dim=0).mean(dim=1)[:, 0, 1:].view(-1, 7, 7)
+                    am = F.interpolate(attention_map.unsqueeze(0), size=(self.visible_range*20, self.visible_range*20))[0, 0]
+                    self.writer.add_image('attention/heatmap', am, self.global_step, dataformats='HW')
+                    am /= torch.max(am)
+                    self.writer.add_image('attention/adjusted_heatmap', am, self.global_step, dataformats='HW')
 
                     # log
                     self.writer.add_scalar('training/epsilon', torch.tensor(self.epsilon), self.global_step)
                     self.writer.add_scalar('training/reward', torch.tensor(rewards).mean(), self.global_step)
                     self.writer.add_scalar('training/total_loss', total_loss_sum, self.global_step)
 
+                    self.global_step += 1
+                    self.episode_step += 1
+
                 self.episode_count += 1
-                self.epsilon *= self.cfg.epsilon_decay
-                self.epsilon = max(self.cfg.epsilon_end, self.epsilon)
+                #self.epsilon *= self.cfg.epsilon_decay
+                #self.epsilon = max(self.cfg.epsilon_end, self.epsilon)
+                self.epsilon = max(0.05, 1.0 - (epoch+1)/7500)
 
                 # update target network
                 for agent in self.agents:
@@ -167,15 +183,16 @@ DQN Network Summary:""")
         with tqdm(total=self.cfg.validate_epochs) as pbar:
             for epoch in range(self.cfg.validate_epochs):
                 for step in range(self.cfg.max_episode_length):
+                    states, rewards, attention_maps = self.play_step()
+                    self.episode_reward += np.sum(rewards)
+                    self.log_attention(states, attention_maps)
+
                     self.global_step += 1
                     self.episode_step += 1
 
-                    actions, rewards, dones = self.play_step()
-                    self.episode_reward += np.sum(rewards)
-
                 self.log_scalars()
                 self.log_heatmap()
-                #self.log_validate()
+                self.log_validate()
                 self.episode_count += 1
                 self.reset()
 
@@ -190,12 +207,14 @@ DQN Network Summary:""")
     def play_step(self, epsilon: float = 0.0):
 
         actions = list()
+        attention_maps = list()
         for agent_id, agent in enumerate(self.agents):
             # normalize states [0, map.SIZE] -> [0, 1.0]
             states = torch.tensor(self.states).float()
 
-            action, am1, am2 = agent.get_action(states[agent_id], epsilon)
+            action, attns = agent.get_action(states[agent_id], epsilon)
             actions.append(action)
+            attention_maps.append(attns)
 
             # heatmap update
             pos_x, pos_y = self.env.world.map.coord2ind(self.env.agents[agent_id].state.p_pos)
@@ -208,7 +227,60 @@ DQN Network Summary:""")
 
         self.states = new_states
 
-        return actions, rewards, dones
+        return states, rewards, attention_maps
+
+    def log_attention(self, states, attention_maps):
+        # make directory
+        path = 'validate'
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        epoch_path = os.path.join(path, 'epoch_'+str(self.episode_count))
+        if not os.path.isdir(epoch_path):
+            os.mkdir(epoch_path)
+        episodes_path = os.path.join(epoch_path, 'episodes')
+        if not os.path.isdir(episodes_path):
+            os.mkdir(episodes_path)
+        episode_path = os.path.join(episodes_path, 'episode_'+str(self.episode_step))
+        if not os.path.isdir(episode_path):
+            os.mkdir(episode_path)
+
+        states[:, 0, self.visible_range//2, self.visible_range//2] = 1
+        states = F.interpolate(states, size=(self.visible_range*20, self.visible_range*20))
+
+        for agent_id, (state, attention_map) in enumerate(zip(states, attention_maps)):
+            agent_path = os.path.join(episode_path, 'agent_'+str(agent_id))
+            if not os.path.isdir(agent_path):
+                os.mkdir(agent_path)
+
+            image = np.zeros((self.visible_range*20, self.visible_range*20, 3), dtype=np.float)
+            obs = state.permute(0, 2, 1).numpy() * 255.0
+
+            # agentの情報を追加(Blue)
+            image[..., 0] += obs[0]
+            # landmarkの情報を追加(Yellow)
+            image[..., 1] += obs[1]
+            image[..., 2] += obs[1]
+            # invisible areaの情報を追加(White)
+            image[..., 0] -= obs[2]
+            image[..., 1] -= obs[2]
+            image[..., 2] -= obs[2]
+
+            cv2.imwrite(str(agent_path)+f'/observation.png', image)
+
+            attention_map = attention_map.mean(dim=0)[0, :, 0, 1:].view(-1, self.visible_range, self.visible_range).cpu().detach()
+            for head_id, am in enumerate(attention_map):
+                fig = plt.figure()
+                sns.heatmap(
+                    torch.t(am), vmin=0, #cmap='Blues',
+                )
+                fig.savefig(os.path.join(agent_path, f'attention_head_{head_id}.png'))
+                plt.close()
+            fig = plt.figure()
+            sns.heatmap(
+                torch.t(attention_map.mean(dim=0)), vmin=0, #cmap='Blues',
+            )
+            fig.savefig(os.path.join(agent_path, 'attention_heads_mean.png'))
+            plt.close()
 
     def log_scalars(self):
         self.writer.add_scalar('episode/episode_reward', torch.tensor(self.episode_reward), self.episode_count)
@@ -247,11 +319,14 @@ DQN Network Summary:""")
         if not os.path.isdir(path):
             os.mkdir(path)
         epoch_path = os.path.join(path, 'epoch_'+str(self.episode_count))
+        if not os.path.isdir(epoch_path):
+            os.mkdir(epoch_path)
         hm_agents_path = os.path.join(epoch_path, 'hm_agents')
+        if not os.path.isdir(hm_agents_path):
+            os.mkdir(hm_agents_path)
         hm_complete_path = os.path.join(epoch_path, 'hm_complete')
-        os.mkdir(epoch_path)
-        os.mkdir(hm_agents_path)
-        os.mkdir(hm_complete_path)
+        if not os.path.isdir(hm_complete_path):
+            os.mkdir(hm_complete_path)
 
         size_x = self.env.world.map.SIZE_X // 2
         size_y = self.env.world.map.SIZE_Y // 2
