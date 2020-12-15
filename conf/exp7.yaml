@@ -3,8 +3,8 @@ defaults:
   - job_logging: disabled
 
 # configure world
-num_agents: 8 #4, 8
-num_landmarks: 40 #20, 40
+num_agents: 8 #8
+num_landmarks: 40 #40
 
 # configure agent
 visible_range: 7
@@ -13,7 +13,7 @@ hidden2: 64
 hidden3: 128
 gamma: 0.9
 
-phase: 'training'
+phase: 'validate'
      # 'training'
      # 'validate'
 
@@ -29,10 +29,5 @@ epsilon_end: 0.05
 
 # configre validate
 validate_epochs: 1000
-load_weight: False
-model_path: '/home/motokawa/projects/EXP/outputs/2020-12-02/17-10-40'
-
-  # 4 agents (exp1)
-  # '/home/motokawa/projects/EXP/outputs/2020-12-02/17-08-09/'
-  # 8 agents (exp2)
-  # '/home/motokawa/projects/EXP/outputs/2020-12-02/17-10-40'
+load_weight: True
+model_path: '/home/motokawa/projects/EXP/outputs/2020-12-02/exp7/'

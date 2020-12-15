@@ -7,8 +7,8 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from models.dqn_conv import DQN_Conv
-#from models.vit import DQN_Conv
+#from models.dqn_conv import DQN_Conv
+from models.vit import DQN_Conv
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import hard_update
@@ -46,7 +46,8 @@ class DQNAgent(Agent):
         if np.random.random() < epsilon:
             state = state.unsqueeze(0)
             action = self.random_action()
-            attns = [torch.zeros(state.shape[0], 4, 50, 50), torch.zeros(state.shape[0], 4, 50, 50)]
+            #attns = [torch.zeros(state.shape[0], 4, 50, 50), torch.zeros(state.shape[0], 4, 50, 50)]
+            attns = [torch.zeros(state.shape[0], 4, 61, 61), torch.zeros(state.shape[0], 4, 61, 61)]
         else:
             with torch.no_grad():
                 state = state.unsqueeze(0).to(self.device)

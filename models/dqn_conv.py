@@ -31,4 +31,4 @@ class DQN_Conv(nn.Module):
         out = F.relu(self.fc1(out))
         out = self.fc2(out)
 
-        return out
+        return out, [torch.zeros((1,1)), torch.zeros((1,1))]

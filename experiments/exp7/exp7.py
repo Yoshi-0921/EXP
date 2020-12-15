@@ -16,8 +16,8 @@ import numpy as np
 import cv2
 import seaborn as sns
 import torch
-from experiments.exp6.exp6_agent import DQNAgent
-from experiments.exp6.exp6_env import Exp6_Env
+from experiments.exp7.exp7_agent import DQNAgent
+from experiments.exp7.exp7_env import Exp7_Env
 from omegaconf import DictConfig
 from torch import nn, optim
 from torch.nn import functional as F
@@ -32,12 +32,12 @@ from utils.dataset import RLDataset
 from utils.tools import hard_update
 
 
-class Exp6:
+class Exp7:
     def __init__(self, config):
-        super(Exp6, self).__init__()
+        super(Exp7, self).__init__()
         self.cfg = config
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.env = Exp6_Env(config)
+        self.env = Exp7_Env(config)
         obs_size = self.env.observation_space
         act_size = self.env.action_space
         # initialize for agents
@@ -57,7 +57,7 @@ class Exp6:
         self.epsilon = config.epsilon_initial
         self.visible_range = config.visible_range
 
-        self.writer = SummaryWriter('exp6')
+        self.writer = SummaryWriter('exp7')
         print(self.env.world.map.matrix[...,0].T)
 
         self.reset()
@@ -133,28 +133,29 @@ DQN Network Summary:""")
                     states, rewards, attention_maps = self.play_step(self.epsilon)
                     self.episode_reward += np.sum(rewards)
 
-                    if epoch % 10 == 0 and step % (self.cfg.max_episode_length//5) == 0 and False:
+                    if epoch % 10 == 0 and step % (self.cfg.max_episode_length//5) == 0:
                         # log attention_maps of agent0
                         for agent_id in range(len(self.agents)):
                             # 各headの出力を足し合わせる
-                            attention_map = attention_maps[agent_id].mean(dim=0).sum(dim=1)[:, 0, 1:].view(-1, 7, 7)
-                            am = F.interpolate(attention_map.unsqueeze(0), size=(self.visible_range*20, self.visible_range*20))[0, 0]
-                            self.writer.add_image(f'attention_{agent_id}/heatmap_mean', am, self.global_step, dataformats='HW')
+                            attention_map = attention_maps[agent_id].mean(dim=0).sum(dim=1)[:, 0, 1:].view(-1, 10, 6)
+                            am = F.interpolate(attention_map.unsqueeze(0), size=(10*20, 6*20))[0, 0]
+                            self.writer.add_image(f'attention_{agent_id}/heatmap_mean', torch.t(am), self.global_step, dataformats='HW')
                             am /= torch.max(am)
-                            self.writer.add_image(f'attention_{agent_id}/adjusted_heatmap_mean', am, self.global_step, dataformats='HW')
+                            self.writer.add_image(f'attention_{agent_id}/adjusted_heatmap_mean', torch.t(am), self.global_step, dataformats='HW')
 
                             #states[:, 0, self.visible_range//2, self.visible_range//2] = 1
-                            state = F.interpolate(states, size=(self.visible_range*20, self.visible_range*20))[agent_id]
-                            image = torch.zeros((3, self.visible_range*20, self.visible_range*20), dtype=torch.float)
+                            state = F.interpolate(states, size=(10*20, 6*20))[agent_id]
+                            image = torch.zeros((3, 10*20, 6*20), dtype=torch.float)
 
                             # agentの情報を追加(Blue)
                             image[2, ...] += state[0]
+                            image[2, ...] += state[1]
                             # landmarkの情報を追加(Yellow)
-                            image[0, ...] += state[1]
-                            image[1, ...] += state[1]
+                            image[0, ...] += state[2]
+                            image[1, ...] += state[2]
                             # invisible areaの情報を追加(White)
-                            image[:, ...] -= state[2]
-                            self.writer.add_image(f'attention_{agent_id}/observation', image, self.global_step, dataformats='CHW')
+                            image[:, ...] -= state[3]
+                            self.writer.add_image(f'attention_{agent_id}/observation', image.permute(0, 2, 1), self.global_step, dataformats='CHW')
 
                     # log
                     self.writer.add_scalar('training/epsilon', torch.tensor(self.epsilon), self.global_step)
@@ -285,17 +286,17 @@ DQN Network Summary:""")
 
             cv2.imwrite(str(agent_path)+f'/observation.png', image)
 
-            attention_map = attention_map.mean(dim=0)[0, :, 0, 1:].view(-1, self.visible_range, self.visible_range).cpu().detach()
+            attention_map = attention_map.mean(dim=0)[0, :, 0, 1:].view(-1, 10, 6).cpu().detach()
             for head_id, am in enumerate(attention_map):
                 fig = plt.figure()
                 sns.heatmap(
-                    torch.t(am), vmin=0, square=True,
+                    torch.t(am), vmin=0, square=True, cbar_kws={"shrink": .65},
                 )
                 fig.savefig(os.path.join(agent_path, f'attention_head_{head_id}.png'))
                 plt.close()
             fig = plt.figure()
             sns.heatmap(
-                torch.t(attention_map.mean(dim=0)), vmin=0, square=True,
+                torch.t(attention_map.mean(dim=0)), vmin=0, square=True, cbar_kws={"shrink": .65},
             )
             fig.savefig(os.path.join(agent_path, 'attention_heads_mean.png'))
             plt.close()
@@ -352,7 +353,7 @@ DQN Network Summary:""")
             # log heatmap_agents
             fig = plt.figure()
             sns.heatmap(
-                torch.t(self.env.heatmap_agents[agent_id]), vmin=0, cmap='Blues', square=True, cbar_kws={"shrink": 0.65}, # 4agents:1.0, 8agents:0.65
+                torch.t(self.env.heatmap_agents[agent_id]), vmin=0, cmap='Blues', square=True, cbar_kws={"shrink": .65},
                 xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
                 yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
             )
@@ -363,7 +364,7 @@ DQN Network Summary:""")
             # log heatmap_complete
             fig = plt.figure()
             sns.heatmap(
-                torch.t(self.env.heatmap_complete[agent_id]), vmin=0, cmap='Blues', square=True, cbar_kws={"shrink": 0.65},
+                torch.t(self.env.heatmap_complete[agent_id]), vmin=0, cmap='Blues', square=True, cbar_kws={"shrink": .65},
                 xticklabels=list(str(x) if x%2==0 else '' for x in range(-size_x, size_x)),
                 yticklabels=list(str(y) if y%2==0 else '' for y in range(size_y, -size_y, -1))
             )
@@ -412,14 +413,14 @@ DQN Network Summary:""")
         plt.close()
 
 
-@hydra.main(config_path='../../conf/exp6.yaml')
+@hydra.main(config_path='../../conf/exp7.yaml')
 def main(config: DictConfig):
     seed = 921 # 921, 1998, 1411, 331, 1999
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
-    exp = Exp6(config=config)
+    exp = Exp7(config=config)
     if config.phase == 'training':
         exp.fit()
     elif config.phase == 'validate':
