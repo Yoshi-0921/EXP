@@ -14,15 +14,19 @@ class DQN_Conv(nn.Module):
     def __init__(self, obs_size: int, n_actions: int, hidden1: int = 32, hidden2: int = 64, hidden3: int = 100):
         super(DQN_Conv, self).__init__()
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.patch_embed = PatchEmbed().to(device)
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, 128))
-        self.pos_embed = nn.Parameter(torch.zeros(1, 7*7 + 1, 128))
+        embed_dim = 64
+        self.patch_embed = PatchEmbed(patch_size=1, embed_dim=embed_dim).to(device)
+        # exp7
+        #self.patch_embed = PatchEmbed(patch_size=4, in_chans=4, embed_dim=embed_dim).to(device)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, 7*7 + 1, embed_dim))
+        # exp7
+        #self.pos_embed = nn.Parameter(torch.zeros(1, 10*6 + 1, embed_dim))
         self.blocks = nn.ModuleList([
-            Block(dim=128, num_heads=4),
-            Block(dim=128, num_heads=4)
+            Block(dim=embed_dim, num_heads=4) for _ in range(1)
             ])
-        self.norm = nn.LayerNorm(128)
-        self.fc1 = nn.Linear(128, n_actions)
+        self.norm = nn.LayerNorm(embed_dim)
+        self.fc1 = nn.Linear(embed_dim, n_actions)
 
     def forward(self, x):
         out = self.patch_embed(x)

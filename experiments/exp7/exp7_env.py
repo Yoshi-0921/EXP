@@ -8,9 +8,9 @@ import torch
 from utils.core import Agent, Env, Landmark, Map, World
 
 
-class Exp6_Env(Env):
+class Exp7_Env(Env):
     def __init__(self, config):
-        super(Exp6_Env, self).__init__()
+        super(Exp7_Env, self).__init__()
         self.cfg = config
         self.world = self.make_world(config)
         self.agents = self.world.agents
@@ -19,12 +19,12 @@ class Exp6_Env(Env):
         self.visible_range = config.visible_range
         self.action_space, self.observation_space = list(), list()
 
-        """self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_complete = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events_left = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_wall_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
-        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)"""
+        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
 
         self.reset()
         self.describe_env()
@@ -38,12 +38,12 @@ class Exp6_Env(Env):
         self.agents_collided = 0
         self.walls_collided = 0
         self.world.map.reset()
-        self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        """self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_complete = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events_left = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_wall_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
-        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)"""
 
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化
@@ -155,115 +155,112 @@ class Exp6_Env(Env):
         return rew
 
     def __observation(self, agent):
-        # 3 x input_range x input_rangeの入力が欲しい
-        # 0:agents, 1:landmarks, 2:visible area
-        obs = np.zeros((3, self.visible_range, self.visible_range), dtype=np.int8)
+        # 4 x SIZE_X x SIZE_Yの入力が欲しい
+        # 0: me, 1:agents, 2:landmarks, 3:visible area
+        obs = np.zeros((4, 40, 24), dtype=np.int8)
         offset = 0
 
+        agent_pos = self.world.map.coord2ind(agent.state.p_pos)
+
         # 壁と見えないセルの入力
-        obs[2, :, :] -= 1
+        obs[3, :, :] -= 1
+        # 自分の場所は0
+        obs[3, agent_pos[0], agent_pos[1]] = 0
         obs = self.fill_obs(obs, agent, offset, offset, 'area')
 
         # イベントの入力
         obs = self.fill_obs(obs, agent, offset, offset, 'event')
 
         # エージェントの入力
-        obs[0, self.visible_range//2, self.visible_range//2] = 1
+        obs[0, agent_pos[0], agent_pos[1]] = 1
         obs = self.fill_obs(obs, agent, offset, offset, 'agent')
 
         return obs
 
     def fill_obs(self, obs, agent, offset_x, offset_y, mode):
         if mode == 'area':
-            # 自分の場所は0
-            obs[2, offset_x+self.visible_range//2, offset_y+self.visible_range//2] = 0
 
             for x in range(-1, 2):
                 for y in [-1, 1]:
                     for opr in [-1, 1]:
                         for j in range(3):
                             pos_x, pos_y = x + j * opr, y + j * y
-                            local_pos_x, local_pos_y = self.world.map.coord2ind((pos_x, pos_y), self.visible_range, self.visible_range)
                             pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                             # 場外なら-1
                             if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 break
                             # セルが真ん中で壁のない角の方向なら続ける
                             if j == 0 and x == 0 and self.world.map.matrix[pos_x+opr, pos_y, 0] == 0:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = 0
+                                obs[3, pos_x, pos_y] = 0
                                 continue
                             # 壁なら-1
                             if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 break
                             # セルが角で真ん中に壁があるならbreak
                             if j == 0 and x != 0 and self.world.map.matrix[pos_x-x, pos_y, 0] == 1 and opr != x:
                                 break
                             # 何もないなら0
                             else:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = 0
+                                obs[3, pos_x, pos_y] = 0
 
             for y in range(-1, 2):
                 for x in [-1, 1]:
                     for opr in range(-1, 2):
                         for j in range(3):
                             pos_x, pos_y = x + j * x, y + j * opr
-                            local_pos_x, local_pos_y = self.world.map.coord2ind((pos_x, pos_y), self.visible_range, self.visible_range)
                             pos_x, pos_y = self.world.map.coord2ind((pos_x+agent.state.p_pos[0], pos_y+agent.state.p_pos[1]))
                             # 場外なら-1
                             if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 break
                             # セルが真ん中で壁のない角の方向なら続ける
                             if j == 0 and y == 0 and self.world.map.matrix[pos_x, pos_y-opr, 0] == 0:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = 0
+                                obs[3, pos_x, pos_y] = 0
                                 continue
                             # 壁なら-1
                             if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 break
                             # セルが角で真ん中に壁があるならbreak
                             if j == 0 and y != 0 and self.world.map.matrix[pos_x, pos_y+y, 0] == 1 and opr != y:
                                 break
                             # 何もないなら0
                             else:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = 0
+                                obs[3, pos_x, pos_y] = 0
 
             for opr_x in [-1, 1]:
                 for x in range(self.visible_range//2 + 1):
                     # 壁ならbreak
                     pos_x, pos_y = agent.state.p_pos[0] + (x * opr_x), agent.state.p_pos[1]
                     pos_x, pos_y = self.world.map.coord2ind((pos_x, pos_y))
-                    local_pos_x, local_pos_y = self.world.map.coord2ind(((x * opr_x), 0), self.visible_range, self.visible_range)
                     if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                        obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                        obs[3, pos_x, pos_y] = -1
                         break
                     for opr_y in [-1, 1]:
                         for y in range(2):
                             pos_x, pos_y = agent.state.p_pos[0] + (x * opr_x), agent.state.p_pos[1] + (y * opr_y)
                             pos_x, pos_y = self.world.map.coord2ind((pos_x, pos_y))
-                            local_pos_x, local_pos_y = self.world.map.coord2ind(((x * opr_x), (y * opr_y)), self.visible_range, self.visible_range)
                             # 場外なら-1
                             if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 continue
                             # 壁なら-1
                             if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 break
                             # 何もないなら0
                             else:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = 0
+                                obs[3, pos_x, pos_y] = 0
 
             for opr_y in [-1, 1]:
                 for y in range(self.visible_range//2 + 1):
                     # 壁ならbreak
                     pos_x, pos_y = agent.state.p_pos[0], agent.state.p_pos[1] + (y * opr_y)
                     pos_x, pos_y = self.world.map.coord2ind((pos_x, pos_y))
-                    local_pos_x, local_pos_y = self.world.map.coord2ind((0, (y * opr_y)), self.visible_range, self.visible_range)
                     if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                        obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                        obs[3, pos_x, pos_y] = -1
                         break
                     for opr_x in [-1, 1]:
                         for x in range(2):
@@ -272,36 +269,34 @@ class Exp6_Env(Env):
                             local_pos_x, local_pos_y = self.world.map.coord2ind(((x * opr_x), (y * opr_y)), self.visible_range, self.visible_range)
                             # 場外なら-1
                             if pos_x < 0 or self.world.map.SIZE_X <= pos_x or pos_y < 0 or self.world.map.SIZE_Y <= pos_y:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 continue
                             # 壁なら-1
                             if self.world.map.matrix[pos_x, pos_y, 0] == 1:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = -1
+                                obs[3, pos_x, pos_y] = -1
                                 break
                             # 何もないなら0
                             else:
-                                obs[2, offset_x + local_pos_x, offset_y + local_pos_y] = 0
+                                obs[3, pos_x, pos_y] = 0
 
         elif mode == 'agent':
             for a in self.world.agents:
                 diff_x, diff_y = a.state.p_pos - agent.state.p_pos
                 if abs(diff_x) > 3 or abs(diff_y) > 3 or (diff_x== 0 and diff_y == 0):
                     continue
-                pos_x, pos_y = self.world.map.coord2ind((a.state.p_pos[0]-agent.state.p_pos[0], a.state.p_pos[1]-agent.state.p_pos[1]),
-                                                        size_x=self.visible_range, size_y=self.visible_range)
+                pos_x, pos_y = self.world.map.coord2ind(a.state.p_pos)
                 # 見える範囲なら追加
-                if obs[2, offset_x + pos_x, offset_y + pos_y] != -1:
-                    obs[0, offset_x + pos_x, offset_y + pos_y] = 1
+                if obs[3, pos_x, pos_y] != -1:
+                    obs[1, pos_x, pos_y] = 1
 
         elif mode == 'event':
             for landmark in self.world.landmarks:
                 if abs(landmark.state.p_pos[0]-agent.state.p_pos[0]) > 3 or abs(landmark.state.p_pos[1]-agent.state.p_pos[1]) > 3:
                     continue
-                pos_x, pos_y = self.world.map.coord2ind((landmark.state.p_pos[0]-agent.state.p_pos[0], landmark.state.p_pos[1]-agent.state.p_pos[1]),
-                                                        size_x=self.visible_range, size_y=self.visible_range)
+                pos_x, pos_y = self.world.map.coord2ind(landmark.state.p_pos)
                 # 見える範囲なら追加
-                if obs[2, offset_x + pos_x, offset_y + pos_y] != -1:
-                    obs[1, offset_x + pos_x, offset_y + pos_y] = 1
+                if obs[3, pos_x, pos_y] != -1:
+                    obs[2, pos_x, pos_y] = 1
 
         return obs
 
@@ -335,20 +330,20 @@ class Exp6_Env(Env):
         for i, landmark in enumerate(world.landmarks):
             landmark.name = f'landmark {i}'
             landmark.collide = False
-        world.map = Exp6_Map(config)
+        world.map = Exp7_Map(config)
 
         return world
 
     def describe_env(self):
         print("""
-    Experiment 6 Environment generated!
+    Experiment 7 Environment generated!
 
     ======================Action======================
     | 0: Right | 1: Up | 2: Left | 3: Down | ------- |
     ===================State(agent)===================
-    | obs1 : 7x7 obs of agents                       |
-    | obs2 : 7x7 obs of events                       |
-    | obs3: 7x7 invisible area                       |
+    | obs1 : 24x40 obs of agents                       |
+    | obs2 : 24x40 obs of events                       |
+    | obs3: 24x40 invisible area                       |
     | np.stack(ob1 + obs2 + obs3)                    |
     ======================Reward======================
     | rew1: +1 if success                            |
@@ -357,9 +352,9 @@ class Exp6_Env(Env):
     ==================================================
     """)
 
-class Exp6_Map(Map):
+class Exp7_Map(Map):
     def __init__(self, config):
-        super(Exp6_Map, self).__init__()
+        super(Exp7_Map, self).__init__()
         self.SIZE_X = 40 # 24, 40
         self.SIZE_Y = 24
         # 0:walls, 1:agents, 2:landmarks
