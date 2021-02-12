@@ -36,6 +36,7 @@ class Exp7:
     def __init__(self, config):
         super(Exp7, self).__init__()
         self.cfg = config
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.env = Exp7_Env(config)
         obs_size = self.env.observation_space
@@ -133,7 +134,7 @@ DQN Network Summary:""")
                     states, rewards, attention_maps = self.play_step(self.epsilon)
                     self.episode_reward += np.sum(rewards)
 
-                    if epoch % 10 == 0 and step % (self.cfg.max_episode_length//5) == 0:
+                    if epoch % 10 == 0 and step % (self.cfg.max_episode_length//5) == 0 and False:
                         # log attention_maps of agent0
                         for agent_id in range(len(self.agents)):
                             # 各headの出力を足し合わせる
@@ -203,15 +204,15 @@ DQN Network Summary:""")
                 for step in range(self.cfg.max_episode_length):
                     states, rewards, attention_maps = self.play_step()
                     self.episode_reward += np.sum(rewards)
-                    #self.log_attention(states, attention_maps)
+                    self.log_attention(states, attention_maps)
 
                     self.global_step += 1
                     self.episode_step += 1
 
-                #self.log_scalars()
-                #self.log_heatmap()
-                if epoch % 100 == 0:
-                    self.log_validate()
+                self.log_scalars()
+                self.log_heatmap()
+                #if epoch % 100 == 0:
+                #    self.log_validate()
                 self.episode_count += 1
                 self.reset()
 
@@ -264,27 +265,28 @@ DQN Network Summary:""")
             os.mkdir(episode_path)
 
         states[:, 0, self.visible_range//2, self.visible_range//2] = 1
-        states = F.interpolate(states, size=(self.visible_range*20, self.visible_range*20))
+        states = F.interpolate(states, size=(10*20, 6*20))
 
         for agent_id, (state, attention_map) in enumerate(zip(states, attention_maps)):
             agent_path = os.path.join(episode_path, 'agent_'+str(agent_id))
             if not os.path.isdir(agent_path):
                 os.mkdir(agent_path)
 
-            image = np.zeros((self.visible_range*20, self.visible_range*20, 3), dtype=np.float)
-            obs = state.permute(0, 2, 1).numpy() * 255.0
+            image = np.zeros((10*20, 6*20, 3), dtype=np.float)
+            obs = state.numpy() * 255.0
 
             # agentの情報を追加(Blue)
             image[..., 0] += obs[0]
+            image[..., 0] += obs[1]
             # landmarkの情報を追加(Yellow)
-            image[..., 1] += obs[1]
-            image[..., 2] += obs[1]
+            image[..., 1] += obs[2]
+            image[..., 2] += obs[2]
             # invisible areaの情報を追加(White)
-            image[..., 0] -= obs[2]
-            image[..., 1] -= obs[2]
-            image[..., 2] -= obs[2]
+            image[..., 0] -= obs[3]
+            image[..., 1] -= obs[3]
+            image[..., 2] -= obs[3]
 
-            cv2.imwrite(str(agent_path)+f'/observation.png', image)
+            cv2.imwrite(str(agent_path)+f'/observation.png', image.transpose(1,0,2))
 
             attention_map = attention_map.mean(dim=0)[0, :, 0, 1:].view(-1, 10, 6).cpu().detach()
             for head_id, am in enumerate(attention_map):
@@ -415,7 +417,7 @@ DQN Network Summary:""")
 
 @hydra.main(config_path='../../conf/exp7.yaml')
 def main(config: DictConfig):
-    seed = 921 # 921, 1998, 1411, 331, 1999
+    seed = 1999 # 921, 1998, 1411, 331, 1999
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)

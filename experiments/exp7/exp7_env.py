@@ -19,12 +19,12 @@ class Exp7_Env(Env):
         self.visible_range = config.visible_range
         self.action_space, self.observation_space = list(), list()
 
-        self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        """self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_complete = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events_left = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_wall_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
-        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)"""
 
         self.reset()
         self.describe_env()
@@ -38,12 +38,12 @@ class Exp7_Env(Env):
         self.agents_collided = 0
         self.walls_collided = 0
         self.world.map.reset()
-        """self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
+        self.heatmap_agents = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_complete = torch.zeros(self.num_agents, self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_events_left = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
         self.heatmap_wall_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
-        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)"""
+        self.heatmap_agents_collision = torch.zeros(self.world.map.SIZE_X, self.world.map.SIZE_Y)
 
         region = (self.world.map.SIZE_X//2) - 1
         # agentのposの初期化

@@ -7,8 +7,8 @@ import numpy as np
 import torch
 from torch import nn, optim
 
-from models.dqn_conv import DQN_Conv
-#from models.vit import DQN_Conv
+#from models.dqn_conv import DQN_Conv
+from models.vit import DQN_Conv
 from utils.agent import Agent
 from utils.buffer import Experience
 from utils.tools import hard_update

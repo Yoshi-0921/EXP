@@ -13,7 +13,7 @@ hidden2: 64
 hidden3: 128
 gamma: 0.9
 
-phase: 'validate'
+phase: 'training'
      # 'training'
      # 'validate'
 
@@ -28,6 +28,6 @@ epsilon_initial: 1.0
 epsilon_end: 0.05
 
 # configre validate
-validate_epochs: 1000
-load_weight: True
-model_path: '/home/motokawa/projects/EXP/outputs/2020-12-02/exp7/'
+validate_epochs: 3
+load_weight: False
+model_path: '/home/y.motokawa/projects/EXP/outputs/2020-12-15/21-53-34/'

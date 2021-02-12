@@ -13,7 +13,7 @@ hidden2: 64
 hidden3: 128
 gamma: 0.9
 
-phase: 'training'
+phase: 'validate'
      # 'training'
      # 'validate'
 
@@ -24,12 +24,12 @@ batch_size: 32
 populate_steps: 1000
 capacity: 100000
 epsilon_decay: 0.9998
-epsilon_initial: 1.0
-epsilon_end: 0.05
+epsilon_initial: 0.0
+epsilon_end: 0.0
 
 # configre validate
-validate_epochs: 1000
-load_weight: False
+validate_epochs: 2
+load_weight: True
 model_path: '/home/motokawa/projects/EXP/outputs/2020-12-02/17-10-40'
 
   # 4 agents (exp1)
